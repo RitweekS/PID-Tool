@@ -1,7 +1,6 @@
 'use client';
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { useNodeContext } from './NodeContext';
 
 interface DraggableNodeProps {
   type: string;
@@ -10,25 +9,15 @@ interface DraggableNodeProps {
 }
 
 const DraggableNode: React.FC<DraggableNodeProps> = ({ type, svgPath, label }) => {
-  const { setDraggedNodeType, setIsDragging } = useNodeContext();
-
   const handleDragStart = (e: React.DragEvent) => {
-    setDraggedNodeType(type);
-    setIsDragging(true);
     e.dataTransfer.setData('application/json', JSON.stringify({ type, svgPath }));
     e.dataTransfer.effectAllowed = 'copy';
-  };
-
-  const handleDragEnd = () => {
-    setIsDragging(false);
-    setDraggedNodeType(null);
   };
 
   return (
     <Box
       draggable
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
       sx={{
         display: 'flex',
         flexDirection: 'column',
