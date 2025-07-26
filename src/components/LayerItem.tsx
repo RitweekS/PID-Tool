@@ -29,7 +29,9 @@ const LayerItem: React.FC<LayerItemProps> = ({
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
-      inputRef.current.select();
+      if (inputRef.current.select && typeof inputRef.current.select === 'function') {
+        inputRef.current.select();
+      }
     }
   }, [isEditing]);
 
