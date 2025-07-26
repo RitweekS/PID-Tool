@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Image, Group, Circle, Rect } from 'react-konva';
+import { Image, Group, Circle, Rect, Transformer } from 'react-konva';
 import { Node } from '../utils';
 
 interface CanvasNodeProps {
@@ -12,12 +12,28 @@ interface CanvasNodeProps {
   onSnapPointClick: (nodeId: string, snapPointId: string, x: number, y: number) => void;
   movingSnapPointId?: string | null;
   connectingSnapPointId?: string | null;
-  isResizing?: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onTransform?: (id: string, attrs: any) => void;
 }
 
 
-const CanvasNode: React.FC<CanvasNodeProps> = ({ node, onDragEnd, onDragMove, onRightClick, onSnapPointRightClick, onSnapPointClick, movingSnapPointId, connectingSnapPointId, isResizing }) => {
+const CanvasNode: React.FC<CanvasNodeProps> = ({ 
+  node, 
+  onDragEnd, 
+  onDragMove, 
+  onRightClick, 
+  onSnapPointRightClick, 
+  onSnapPointClick, 
+  movingSnapPointId, 
+  connectingSnapPointId, 
+  isSelected,
+  onSelect,
+  onTransform
+}) => {
   const [image, setImage] = React.useState<HTMLImageElement | null>(null);
+  const groupRef = React.useRef<any>(null);
+  const transformerRef = React.useRef<any>(null);
 
   React.useEffect(() => {
     const img = new window.Image();
@@ -26,6 +42,21 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({ node, onDragEnd, onDragMove, on
       setImage(img);
     };
   }, [node.svgPath]);
+
+  React.useEffect(() => {
+    if (isSelected && transformerRef.current && groupRef.current) {
+      transformerRef.current.nodes([groupRef.current]);
+      transformerRef.current.getLayer().batchDraw();
+    }
+  }, [isSelected]);
+
+  // Update transformer when node dimensions change
+  React.useEffect(() => {
+    if (isSelected && transformerRef.current && groupRef.current) {
+      transformerRef.current.forceUpdate();
+      transformerRef.current.getLayer().batchDraw();
+    }
+  }, [node.width, node.height, node.scaleX, node.scaleY, isSelected]);
 
   const handleDragEnd = (e: any) => {
     const { x, y } = e.target.position();
@@ -37,6 +68,55 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({ node, onDragEnd, onDragMove, on
       const { x, y } = e.target.position();
       onDragMove(node.id, x, y);
     }
+  };
+
+  const handleTransform = () => {
+    // This is called during transform for real-time updates
+    if (transformerRef.current && groupRef.current) {
+      const groupNode = groupRef.current;
+      // Force re-render during transform
+      groupNode.getLayer()?.batchDraw();
+    }
+  };
+
+  const handleTransformEnd = () => {
+    if (onTransform && groupRef.current && transformerRef.current) {
+      const groupNode = groupRef.current;
+      const scaleX = groupNode.scaleX();
+      const scaleY = groupNode.scaleY();
+      
+      // Calculate new dimensions based on current width/height
+      const newWidth = width * scaleX;
+      const newHeight = height * scaleY;
+      
+      onTransform(node.id, {
+        x: groupNode.x(),
+        y: groupNode.y(),
+        rotation: groupNode.rotation(),
+        scaleX: 1, // Reset scale after applying to dimensions
+        scaleY: 1, // Reset scale after applying to dimensions
+        width: newWidth,
+        height: newHeight,
+      });
+      
+      // Reset the scale on the group since we've applied it to dimensions
+      groupNode.scaleX(1);
+      groupNode.scaleY(1);
+      
+      // Force transformer to update with new dimensions
+      setTimeout(() => {
+        if (transformerRef.current && groupRef.current) {
+          transformerRef.current.nodes([groupRef.current]);
+          transformerRef.current.forceUpdate();
+          transformerRef.current.getLayer().batchDraw();
+        }
+      }, 0);
+    }
+  };
+
+  const handleClick = (e: any) => {
+    // Transform mode is now activated via context menu only
+    e.cancelBubble = true;
   };
 
   const handleRightClick = (e: any) => {
@@ -96,15 +176,27 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({ node, onDragEnd, onDragMove, on
       width = baseSize * aspectRatio;
     }
   }
+  
+  // Store original dimensions for transform calculations
+  const originalWidth = width;
+  const originalHeight = height;
 
   return (
     <>
       <Group
+        ref={groupRef}
+        id={node.id}
         x={node.x}
         y={node.y}
+        rotation={node.rotation || 0}
+        scaleX={node.scaleX || 1}
+        scaleY={node.scaleY || 1}
         draggable
         onDragEnd={handleDragEnd}
         onDragMove={handleDragMove}
+        onClick={handleClick}
+        onTransform={handleTransform}
+        onTransformEnd={handleTransformEnd}
       >
         {/* Invisible clickable area covering the entire component */}
         <Rect
@@ -124,22 +216,44 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({ node, onDragEnd, onDragMove, on
           offsetY={height / 2}
           onContextMenu={handleRightClick}
         />
-        
-        {/* Resize mode visual feedback */}
-        {isResizing && (
-          <Rect
-            x={-width / 2 - 5}
-            y={-height / 2 - 5}
-            width={width + 10}
-            height={height + 10}
-            stroke="#FF6B35"
-            strokeWidth={2}
-            dash={[5, 5]}
-            fill="transparent"
-            listening={false}
-          />
-        )}
       </Group>
+      
+      {isSelected && (
+        <Transformer
+          ref={transformerRef}
+          enabledAnchors={[
+            'top-left',
+            'top-right', 
+            'bottom-left',
+            'bottom-right',
+            'top-center',
+            'bottom-center',
+            'middle-left',
+            'middle-right'
+          ]}
+          rotateEnabled={true}
+          resizeEnabled={true}
+          keepRatio={false}
+          anchorSize={8}
+          anchorStroke="#4285f4"
+          anchorFill="white"
+          anchorStrokeWidth={2}
+          borderStroke="#4285f4"
+          borderStrokeWidth={2}
+          rotateAnchorOffset={30}
+          boundBoxFunc={(oldBox, newBox) => {
+            // Limit minimum resize
+            if (newBox.width < 30 || newBox.height < 30) {
+              return oldBox;
+            }
+            // Limit maximum resize
+            if (newBox.width > 500 || newBox.height > 500) {
+              return oldBox;
+            }
+            return newBox;
+          }}
+        />
+      )}
       
       {/* Render snap points outside the draggable group */}
       {node.snapPoints.map((snapPoint) => {
@@ -154,11 +268,22 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({ node, onDragEnd, onDragMove, on
         const snapPointStroke = isConnecting ? "#FF6B35" : "#333";
         const snapPointStrokeWidth = isConnecting ? 3 : 2;
         
+        // Calculate transformed snap point position
+        const cos = Math.cos((node.rotation || 0) * Math.PI / 180);
+        const sin = Math.sin((node.rotation || 0) * Math.PI / 180);
+        const scaleX = node.scaleX || 1;
+        const scaleY = node.scaleY || 1;
+        
+        const scaledX = snapPoint.x * scaleX;
+        const scaledY = snapPoint.y * scaleY;
+        const rotatedX = scaledX * cos - scaledY * sin;
+        const rotatedY = scaledX * sin + scaledY * cos;
+        
         return (
           <Circle
             key={snapPoint.id}
-            x={node.x + snapPoint.x}
-            y={node.y + snapPoint.y}
+            x={node.x + rotatedX}
+            y={node.y + rotatedY}
             radius={8}
             fill={snapPointFill}
             stroke={snapPointStroke}

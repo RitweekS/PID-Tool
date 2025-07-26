@@ -21,6 +21,7 @@ interface NodeContextType {
   addNode: (node: Node) => void;
   updateNodePosition: (id: string, x: number, y: number) => void;
   updateNodeSize: (id: string, width: number, height: number) => void;
+  updateNodeTransform: (id: string, attrs: any) => void;
   addSnapPoint: (nodeId: string, snapPoint: Omit<SnapPoint, 'id' | 'nodeId'>) => void;
   removeSnapPoint: (nodeId: string, snapPointId: string) => void;
   updateSnapPointPosition: (nodeId: string, snapPointId: string, x: number, y: number) => void;
@@ -66,15 +67,48 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     setNodes(prev => updateNodeSizeInNodes(prev, id, width, height));
   };
 
+  const updateNodeTransform = (id: string, attrs: any) => {
+    setNodes(prev => {
+      const updatedNodes = prev.map(node => 
+        node.id === id 
+          ? { 
+              ...node, 
+              x: attrs.x, 
+              y: attrs.y, 
+              rotation: attrs.rotation,
+              scaleX: attrs.scaleX,
+              scaleY: attrs.scaleY,
+              width: attrs.width,
+              height: attrs.height
+            } 
+          : node
+      );
+      
+      // Update connections when nodes transform
+      setConnections(currentConnections => updateConnectionPaths(currentConnections, updatedNodes));
+      
+      return updatedNodes;
+    });
+  };
+
   const addSnapPoint = (nodeId: string, snapPoint: Omit<SnapPoint, 'id' | 'nodeId'>) => {
     setNodes(prev => addSnapPointToNodes(prev, nodeId, snapPoint));
   };
 
   const removeSnapPoint = (nodeId: string, snapPointId: string) => {
     // Remove connections associated with this snap point
+    const connectionsToRemove = connections.filter(conn => 
+      conn.fromSnapId === snapPointId || conn.toSnapId === snapPointId
+    );
+    
     setConnections(prev => removeConnectionsForSnapPoint(prev, snapPointId));
-    // Remove the snap point
     setNodes(prev => removeSnapPointFromNodes(prev, nodeId, snapPointId));
+    
+    // Also remove associated pipe lines
+    connectionsToRemove.forEach(conn => {
+      const pipeLineId = `pipe-${conn.id}`;
+      // This will be handled by the canvas component
+    });
   };
 
   const updateSnapPointPosition = (nodeId: string, snapPointId: string, x: number, y: number) => {
@@ -96,6 +130,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
       addNode,
       updateNodePosition,
       updateNodeSize,
+      updateNodeTransform,
       addSnapPoint,
       removeSnapPoint,
       updateSnapPointPosition,
