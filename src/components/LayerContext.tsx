@@ -1,0 +1,199 @@
+'use client';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+
+export interface Layer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  nodes: string[]; // Array of node IDs that belong to this layer
+  lines: string[]; // Array of line IDs that belong to this layer
+  createdAt: Date;
+}
+
+interface LayerContextType {
+  layers: Layer[];
+  activeLayerId: string | null;
+  addLayer: (name?: string) => void;
+  deleteLayer: (layerId: string, onDeleteNodes?: (nodeIds: string[]) => void, onDeleteLines?: (lineIds: string[]) => void) => void;
+  renameLayer: (layerId: string, newName: string) => void;
+  toggleLayerVisibility: (layerId: string) => void;
+  toggleLayerLock: (layerId: string) => void;
+  setActiveLayer: (layerId: string | null) => void;
+  addNodeToLayer: (layerId: string, nodeId: string) => void;
+  removeNodeFromLayer: (layerId: string, nodeId: string) => void;
+  addLineToLayer: (layerId: string, lineId: string) => void;
+  removeLineFromLayer: (layerId: string, lineId: string) => void;
+  getLayerById: (layerId: string) => Layer | undefined;
+  getActiveLayer: () => Layer | undefined;
+  getLayerElements: (layerId: string) => { nodes: string[], lines: string[] };
+}
+
+const LayerContext = createContext<LayerContextType | undefined>(undefined);
+
+export const useLayerContext = () => {
+  const context = useContext(LayerContext);
+  if (!context) {
+    throw new Error('useLayerContext must be used within a LayerProvider');
+  }
+  return context;
+};
+
+interface LayerProviderProps {
+  children: ReactNode;
+}
+
+export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
+  const [layers, setLayers] = useState<Layer[]>([
+    {
+      id: 'default-layer',
+      name: 'Default Layer',
+      visible: true,
+      locked: false,
+      nodes: [],
+      lines: [],
+      createdAt: new Date(),
+    }
+  ]);
+  const [activeLayerId, setActiveLayerId] = useState<string>('default-layer');
+
+  const addLayer = (name?: string) => {
+    const layerName = name || `Layer ${layers.length + 1}`;
+    const newLayer: Layer = {
+      id: `layer-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      name: layerName,
+      visible: true,
+      locked: false,
+      nodes: [],
+      lines: [],
+      createdAt: new Date(),
+    };
+    setLayers(prev => [...prev, newLayer]);
+    setActiveLayerId(newLayer.id);
+  };
+
+  const deleteLayer = (layerId: string, onDeleteNodes?: (nodeIds: string[]) => void, onDeleteLines?: (lineIds: string[]) => void) => {
+    if (layerId === 'default-layer') {
+      // Don't allow deletion of default layer
+      return;
+    }
+    
+    // Get the layer to be deleted
+    const layerToDelete = getLayerById(layerId);
+    if (!layerToDelete) return;
+    
+    // Call cleanup functions to delete associated elements
+    if (onDeleteNodes && layerToDelete.nodes.length > 0) {
+      onDeleteNodes(layerToDelete.nodes);
+    }
+    
+    if (onDeleteLines && layerToDelete.lines.length > 0) {
+      onDeleteLines(layerToDelete.lines);
+    }
+    
+    setLayers(prev => {
+      const updatedLayers = prev.filter(layer => layer.id !== layerId);
+      
+      // If we're deleting the active layer, switch to default layer
+      if (activeLayerId === layerId) {
+        setActiveLayerId('default-layer');
+      }
+      
+      return updatedLayers;
+    });
+  };
+
+  const renameLayer = (layerId: string, newName: string) => {
+    if (!newName.trim()) return;
+    
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId ? { ...layer, name: newName.trim() } : layer
+    ));
+  };
+
+  const toggleLayerVisibility = (layerId: string) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId ? { ...layer, visible: !layer.visible } : layer
+    ));
+  };
+
+  const toggleLayerLock = (layerId: string) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId ? { ...layer, locked: !layer.locked } : layer
+    ));
+  };
+
+  const setActiveLayer = (layerId: string | null) => {
+    setActiveLayerId(layerId || 'default-layer');
+  };
+
+  const addNodeToLayer = (layerId: string, nodeId: string) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId 
+        ? { ...layer, nodes: [...layer.nodes, nodeId] }
+        : layer
+    ));
+  };
+
+  const removeNodeFromLayer = (layerId: string, nodeId: string) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId 
+        ? { ...layer, nodes: layer.nodes.filter(id => id !== nodeId) }
+        : layer
+    ));
+  };
+
+  const addLineToLayer = (layerId: string, lineId: string) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId 
+        ? { ...layer, lines: [...layer.lines, lineId] }
+        : layer
+    ));
+  };
+
+  const removeLineFromLayer = (layerId: string, lineId: string) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId 
+        ? { ...layer, lines: layer.lines.filter(id => id !== lineId) }
+        : layer
+    ));
+  };
+
+  const getLayerById = (layerId: string) => {
+    return layers.find(layer => layer.id === layerId);
+  };
+
+  const getActiveLayer = () => {
+    return layers.find(layer => layer.id === activeLayerId);
+  };
+
+  const getLayerElements = (layerId: string) => {
+    const layer = getLayerById(layerId);
+    if (!layer) {
+      return { nodes: [], lines: [] };
+    }
+    return { nodes: layer.nodes, lines: layer.lines };
+  };
+
+  return (
+    <LayerContext.Provider value={{
+      layers,
+      activeLayerId,
+      addLayer,
+      deleteLayer,
+      renameLayer,
+      toggleLayerVisibility,
+      toggleLayerLock,
+      setActiveLayer,
+      addNodeToLayer,
+      removeNodeFromLayer,
+      addLineToLayer,
+      removeLineFromLayer,
+      getLayerById,
+      getActiveLayer,
+      getLayerElements,
+    }}>
+      {children}
+    </LayerContext.Provider>
+  );
+}; 

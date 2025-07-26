@@ -1,12 +1,28 @@
 import {
     Box,
     Paper,
+    Button,
 } from "@mui/material";
 import React from 'react'
 import { useLineContext } from '../components/LineContext'
+import { useLayerContext } from '../components/LayerContext'
+import { useNodeContext } from '../components/NodeContext'
+import LayerItem from '../components/LayerItem'
+import { Add } from '@mui/icons-material'
 
 const LeftDrawer = () => {
-  const { selectedLineType, setSelectedLineType } = useLineContext()
+  const { selectedLineType, setSelectedLineType, deleteLine } = useLineContext()
+  const { nodes, deleteNode, connections, setConnections } = useNodeContext()
+  const { 
+    layers, 
+    activeLayerId, 
+    addLayer, 
+    deleteLayer, 
+    renameLayer, 
+    toggleLayerVisibility, 
+    toggleLayerLock, 
+    setActiveLayer 
+  } = useLayerContext()
   
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
     const nodeType = event.currentTarget.getAttribute('data-node-id')
@@ -19,6 +35,39 @@ const LeftDrawer = () => {
   const handlePipeTypeClick = (pipeType: string) => {
     setSelectedLineType(selectedLineType === pipeType ? null : pipeType)
   }
+
+  // Function to handle layer deletion with proper cleanup
+  const handleDeleteLayer = (layerId: string) => {
+    deleteLayer(
+      layerId,
+      // Node cleanup function
+      (nodeIds: string[]) => {
+        nodeIds.forEach(nodeId => {
+          // Find and delete related connections first
+          const nodeToDelete = nodes.find(n => n.id === nodeId);
+          if (nodeToDelete && nodeToDelete.snapPoints) {
+            nodeToDelete.snapPoints.forEach(snapPoint => {
+              const relatedConnections = connections.filter(conn => 
+                conn.fromSnapId === snapPoint.id || conn.toSnapId === snapPoint.id
+              );
+              relatedConnections.forEach(conn => {
+                // Remove the connection from connections array
+                setConnections(prev => prev.filter(c => c.id !== conn.id));
+              });
+            });
+          }
+          // Delete the node
+          deleteNode(nodeId);
+        });
+      },
+      // Line cleanup function
+      (lineIds: string[]) => {
+        lineIds.forEach(lineId => {
+          deleteLine(lineId);
+        });
+      }
+    );
+  };
 
   return (
     <Box sx={{
@@ -420,6 +469,74 @@ const LeftDrawer = () => {
                         Heat Exchanger
                     </span>
                 </Paper>
+            </Box>
+
+            {/* Layers Section */}
+            <Box
+                sx={{
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    bgcolor: "#424242",
+                    borderRadius: "8px",
+                    border: "2px solid #bdbdbd",
+                    paddingTop: "6px",
+                    paddingBottom: "6px",
+                    paddingLeft: "12px",
+                    paddingRight: "12px",
+                    color: "#ffffff",
+                    marginBottom: "8px",
+                }}
+            >
+                <span>Layers</span>
+                <Button
+                    onClick={() => addLayer()}
+                    startIcon={<Add />}
+                    sx={{
+                        minWidth: "auto",
+                        padding: "4px 8px",
+                        fontSize: "12px",
+                        color: "#ffffff",
+                        backgroundColor: "rgba(255, 255, 255, 0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(255, 255, 255, 0.2)",
+                        },
+                    }}
+                >
+                    Add
+                </Button>
+            </Box>
+
+            {/* Layers List */}
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    width: "100%",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    padding: "8px",
+                    backgroundColor: "#f5f5f5",
+                    borderRadius: "8px",
+                    border: "1px solid #e0e0e0",
+                }}
+            >
+                {layers.map((layer) => (
+                    <LayerItem
+                        key={layer.id}
+                        layer={layer}
+                        isActive={activeLayerId === layer.id}
+                        onToggleVisibility={() => toggleLayerVisibility(layer.id)}
+                        onToggleLock={() => toggleLayerLock(layer.id)}
+                        onDelete={() => handleDeleteLayer(layer.id)}
+                        onRename={(newName) => renameLayer(layer.id, newName)}
+                        onSelect={() => setActiveLayer(layer.id)}
+                    />
+                ))}
             </Box>
         </Box>
     </Box>

@@ -3,6 +3,7 @@ import React, { useRef, useState, useMemo, useCallback } from 'react';
 import { Stage, Layer, Line, Circle, Path } from 'react-konva';
 import { useNodeContext } from './NodeContext';
 import { useLineContext } from './LineContext';
+import { useLayerContext } from './LayerContext';
 import CanvasNode from './CanvasNode';
 import { getComponentBounds, isPositionWithinBounds, getSnapPointWorldPosition, getSnapPointsNear, updatePipeLines } from '../utils';
 import { getDistanceToLine, findNearestLineSegment, insertPointInPipe, movePipePoint, getPipeControlPoints, movePipe, isEndPoint } from '../utils/pipeUtils';
@@ -66,6 +67,7 @@ const Canvas = () => {
     setConnections
   } = useNodeContext();
   const { lines, addLine, updateLine, deleteLine, selectedLineType, isDrawing, setIsDrawing, selectedLineId, setSelectedLineId, movingLineId, setMovingLineId } = useLineContext();
+  const { layers, activeLayerId, getActiveLayer, addNodeToLayer, addLineToLayer } = useLayerContext();
   const stageRef = useRef<any>(null);
   const [drawingPoints, setDrawingPoints] = useState<number[]>([]);
   const [startSnapPoint, setStartSnapPoint] = useState<string | null>(null);
@@ -313,8 +315,13 @@ const Canvas = () => {
         snapPoints: [],
       };
       addNode(newNode);
+      
+      // Automatically assign the new node to the active layer
+      if (activeLayerId) {
+        addNodeToLayer(activeLayerId, newNode.id);
+      }
     }
-  }, [addNode]);
+  }, [addNode, activeLayerId, addNodeToLayer]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -448,6 +455,11 @@ const Canvas = () => {
 
           addLine(newLine);
           
+          // Automatically assign the new line to the active layer
+          if (activeLayerId) {
+            addLineToLayer(activeLayerId, newLine.id);
+          }
+          
           // Create the connection with matching ID
           const newConnection = {
             id: connectionId,
@@ -473,7 +485,7 @@ const Canvas = () => {
         });
       }
     }
-  }, [connectingSnapPoint, nodes, addConnection, selectedLineType, addLine]);
+  }, [connectingSnapPoint, nodes, addConnection, selectedLineType, addLine, activeLayerId, addLineToLayer]);
 
   // Close context menu when clicking elsewhere and handle escape key
   React.useEffect(() => {
@@ -896,6 +908,11 @@ const Canvas = () => {
         };
 
         addLine(newLine);
+        
+        // Automatically assign the new line to the active layer
+        if (activeLayerId) {
+          addLineToLayer(activeLayerId, newLine.id);
+        }
       }
     }
     
@@ -903,11 +920,38 @@ const Canvas = () => {
     setStartSnapPoint(null);
     setNearbySnapPoint(null);
     setIsDrawing(false);
-  }, [isDrawing, selectedLineType, drawingPoints, addLine, addConnection, setIsDrawing, snapToGrid, startSnapPoint, nodes, selectedLineId, draggedPointIndex, setDraggedPointIndex, setDragOffset, isDraggingPipe, setIsDraggingPipe]);
+  }, [isDrawing, selectedLineType, drawingPoints, addLine, addConnection, setIsDrawing, snapToGrid, startSnapPoint, nodes, selectedLineId, draggedPointIndex, setDraggedPointIndex, setDragOffset, isDraggingPipe, setIsDraggingPipe, activeLayerId, addLineToLayer]);
 
-  // Memoized line rendering
+  // Filter nodes and lines based on layer visibility
+  const visibleNodes = useMemo(() => {
+    return nodes.filter(node => {
+      // Find which layer this node belongs to
+      const nodeLayer = layers.find(layer => layer.nodes.includes(node.id));
+      // If no layer is assigned, show on default layer
+      if (!nodeLayer) {
+        const defaultLayer = layers.find(layer => layer.id === 'default-layer');
+        return defaultLayer?.visible ?? true;
+      }
+      return nodeLayer.visible;
+    });
+  }, [nodes, layers]);
+
+  const visibleLines = useMemo(() => {
+    return lines.filter(line => {
+      // Find which layer this line belongs to
+      const lineLayer = layers.find(layer => layer.lines.includes(line.id));
+      // If no layer is assigned, show on default layer
+      if (!lineLayer) {
+        const defaultLayer = layers.find(layer => layer.id === 'default-layer');
+        return defaultLayer?.visible ?? true;
+      }
+      return lineLayer.visible;
+    });
+  }, [lines, layers]);
+
+  // Update renderedLines to use visibleLines instead of lines
   const renderedLines = useMemo(() => {
-    return lines.map((line) => {
+    return visibleLines.map((line) => {
       const isSelected = selectedLineId === line.id;
       const isHovered = pipeHover === line.id;
       const controlPoints = isSelected ? getPipeControlPoints(line.points) : [];
@@ -928,19 +972,27 @@ const Canvas = () => {
             onContextMenu={(e) => {
               e.evt.preventDefault();
               const stage = e.target.getStage();
-              const pos = stage.getPointerPosition();
-              setPipeContextMenu({
-                visible: true,
-                x: pos.x,
-                y: pos.y,
-                lineId: line.id,
-                showColorDropdown: false
-              });
+              if (stage) {
+                const pos = stage.getPointerPosition();
+                if (pos) {
+                  setPipeContextMenu({
+                    visible: true,
+                    x: pos.x,
+                    y: pos.y,
+                    lineId: line.id,
+                    showColorDropdown: false
+                  });
+                }
+              }
             }}
             onDblClick={(e) => {
               const stage = e.target.getStage();
-              const pos = stage.getRelativePointerPosition();
-              handlePipeMouseDown(line.id, pos);
+              if (stage) {
+                const pos = stage.getRelativePointerPosition();
+                if (pos) {
+                  handlePipeMouseDown(line.id, pos);
+                }
+              }
             }}
           />
           {line.type === 'single-arrow' && renderArrow(line.points, false, line.stroke)}
@@ -979,7 +1031,7 @@ const Canvas = () => {
         </React.Fragment>
       );
     });
-  }, [lines, renderArrow, selectedLineId, pipeHover]);
+  }, [visibleLines, renderArrow, selectedLineId, pipeHover]);
 
   // Note: Connections are now rendered as lines in the line system
   // This maintains data relationships between snap points
@@ -1086,7 +1138,7 @@ const Canvas = () => {
             />
           )}
           
-          {nodes.map((node) => (
+          {visibleNodes.map((node) => (
             <CanvasNode
               key={node.id}
               node={node}
