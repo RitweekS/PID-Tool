@@ -63,37 +63,20 @@ const LayerItem: React.FC<LayerItemProps> = ({
   return (
     <Box
       sx={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '8px 12px',
-        backgroundColor: isActive ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
-        border: isActive ? '2px solid #4caf50' : '1px solid #e0e0e0',
-        borderRadius: '6px',
-        marginBottom: '4px',
-        cursor: 'pointer',
-        '&:hover': {
-          backgroundColor: isActive ? 'rgba(76, 175, 80, 0.15)' : 'rgba(0, 0, 0, 0.04)',
+        display: "flex",
+        alignItems: "center",
+        padding: "6px 8px",
+        borderRadius: "4px",
+        border: isActive ? "2px solid #1976d2" : "1px solid #e0e0e0",
+        backgroundColor: isActive ? "rgba(25, 118, 210, 0.1)" : "#ffffff",
+        cursor: "pointer",
+        position: "relative", // Add position relative for menu positioning
+        "&:hover": {
+            backgroundColor: isActive ? "rgba(25, 118, 210, 0.2)" : "rgba(0, 0, 0, 0.05)",
         },
-        transition: 'all 0.2s ease',
       }}
       onClick={onSelect}
     >
-      {/* Visibility Toggle */}
-      <IconButton
-        size="small"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleVisibility();
-        }}
-        sx={{
-          padding: '4px',
-          marginRight: '8px',
-          color: layer.visible ? '#4caf50' : '#757575',
-        }}
-      >
-        {layer.visible ? <Visibility fontSize="small" /> : <VisibilityOff fontSize="small" />}
-      </IconButton>
-
       {/* Layer Name */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {isEditing ? (
@@ -126,7 +109,6 @@ const LayerItem: React.FC<LayerItemProps> = ({
                 fontSize: '12px',
                 fontWeight: isActive ? 'bold' : 'normal',
                 color: layer.visible ? '#333' : '#757575',
-                textDecoration: layer.visible ? 'none' : 'line-through',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -147,6 +129,23 @@ const LayerItem: React.FC<LayerItemProps> = ({
         )}
       </Box>
 
+      {/* Visibility Toggle */}
+      <IconButton
+        size="small"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleVisibility();
+        }}
+        sx={{
+          padding: '4px',
+          color: layer.visible ? '#4caf50' : '#757575',
+        }}
+        disableRipple
+        disableFocusRipple
+      >
+        {layer.visible ? <Visibility sx={{ fontSize: "14px" }} /> : <VisibilityOff sx={{ fontSize: "14px" }} />}
+      </IconButton>
+      
       {/* Action Buttons */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
         {/* Lock Toggle */}
@@ -160,8 +159,10 @@ const LayerItem: React.FC<LayerItemProps> = ({
             padding: '4px',
             color: layer.locked ? '#f57c00' : '#757575',
           }}
+          disableRipple
+          disableFocusRipple
         >
-          {layer.locked ? <Lock fontSize="small" /> : <LockOpen fontSize="small" />}
+          {layer.locked ? <Lock sx={{ fontSize: "14px" }} /> : <LockOpen sx={{ fontSize: "14px" }} />}
         </IconButton>
 
         {/* Delete Button */}
@@ -181,8 +182,10 @@ const LayerItem: React.FC<LayerItemProps> = ({
                 backgroundColor: 'rgba(211, 47, 47, 0.1)',
               },
             }}
+            disableRipple 
+            disableFocusRipple
           >
-            <Delete fontSize="small" />
+            <Delete sx={{ fontSize: "14px" }} />
           </IconButton>
         )}
       </Box>

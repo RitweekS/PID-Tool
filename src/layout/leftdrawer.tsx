@@ -494,19 +494,17 @@ const LeftDrawer = () => {
                 <span>Layers</span>
                 <Button
                     onClick={() => addLayer()}
-                    startIcon={<Add />}
                     sx={{
                         minWidth: "auto",
-                        padding: "4px 8px",
-                        fontSize: "12px",
+                        padding: "2px 2px",
+                        // fontSize: "12px",
                         color: "#ffffff",
-                        backgroundColor: "rgba(255, 255, 255, 0.1)",
                         "&:hover": {
                             backgroundColor: "rgba(255, 255, 255, 0.2)",
                         },
                     }}
                 >
-                    Add
+                    <Add />
                 </Button>
             </Box>
 
