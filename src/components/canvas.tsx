@@ -299,6 +299,13 @@ const Canvas = () => {
   // Optimized event handlers
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    
+    // Check if active layer is locked
+    const activeLayer = getActiveLayer();
+    if (activeLayer?.locked) {
+      return; // Prevent dropping nodes when layer is locked
+    }
+    
     const stage = stageRef.current;
     const rect = stage.container().getBoundingClientRect();
     const x = (e.clientX - rect.left - stage.x()) / stage.scaleX();
@@ -321,7 +328,7 @@ const Canvas = () => {
         addNodeToLayer(activeLayerId, newNode.id);
       }
     }
-  }, [addNode, activeLayerId, addNodeToLayer]);
+  }, [addNode, activeLayerId, addNodeToLayer, getActiveLayer]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -352,6 +359,14 @@ const Canvas = () => {
   const handleAddSnapPointDirect = useCallback(() => {
     if (!contextMenu.nodeId) return;
     
+    // Check if the node's layer is locked
+    const nodeLayer = layers.find(layer => layer.nodes.includes(contextMenu.nodeId!));
+    const isNodeLayerLocked = nodeLayer?.locked ?? false;
+    
+    if (isNodeLayerLocked) {
+      return; // Prevent adding snap points when layer is locked
+    }
+    
     // Enter snap point preview mode
     setAddingSnapPoint({
       nodeId: contextMenu.nodeId,
@@ -359,26 +374,50 @@ const Canvas = () => {
     });
     
     setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
-  }, [contextMenu]);
+  }, [contextMenu, layers]);
 
   const handleTransformMode = useCallback(() => {
     if (!contextMenu.nodeId) return;
     
+    // Check if the node's layer is locked
+    const nodeLayer = layers.find(layer => layer.nodes.includes(contextMenu.nodeId!));
+    const isNodeLayerLocked = nodeLayer?.locked ?? false;
+    
+    if (isNodeLayerLocked) {
+      return; // Prevent transform mode when layer is locked
+    }
+    
     setTransformMode(contextMenu.nodeId);
     setSelectedNodeId(contextMenu.nodeId);
     setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
-  }, [contextMenu]);
+  }, [contextMenu, layers]);
 
 
   const handleDeleteSnapPoint = useCallback(() => {
     if (!contextMenu.nodeId || !contextMenu.snapPointId) return;
     
+    // Check if the node's layer is locked
+    const nodeLayer = layers.find(layer => layer.nodes.includes(contextMenu.nodeId!));
+    const isNodeLayerLocked = nodeLayer?.locked ?? false;
+    
+    if (isNodeLayerLocked) {
+      return; // Prevent deleting snap points when layer is locked
+    }
+    
     removeSnapPoint(contextMenu.nodeId, contextMenu.snapPointId);
     setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
-  }, [contextMenu, removeSnapPoint]);
+  }, [contextMenu, removeSnapPoint, layers]);
 
   const handleMoveSnapPoint = useCallback(() => {
     if (!contextMenu.nodeId || !contextMenu.snapPointId) return;
+    
+    // Check if the node's layer is locked
+    const nodeLayer = layers.find(layer => layer.nodes.includes(contextMenu.nodeId!));
+    const isNodeLayerLocked = nodeLayer?.locked ?? false;
+    
+    if (isNodeLayerLocked) {
+      return; // Prevent moving snap points when layer is locked
+    }
     
     // Get current snap point position to start preview there
     const currentPos = getSnapPointWorldPosition(nodes, contextMenu.snapPointId!);
@@ -390,10 +429,16 @@ const Canvas = () => {
     });
     
     setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
-  }, [contextMenu, nodes]);
+  }, [contextMenu, nodes, layers]);
 
 
   const handlePipeMouseDown = useCallback((lineId: string, clickPos: { x: number; y: number }) => {
+    // Check if active layer is locked - prevent pipe interactions
+    const activeLayer = getActiveLayer();
+    if (activeLayer?.locked) {
+      return; // Prevent pipe interactions when layer is locked
+    }
+    
     const line = lines.find(l => l.id === lineId);
     if (!line) return;
     
@@ -419,9 +464,15 @@ const Canvas = () => {
         y: snappedPos.y
       });
     }
-  }, [lines, setSelectedLineId, snapToGrid]);
+  }, [lines, setSelectedLineId, snapToGrid, getActiveLayer]);
 
   const handleSnapPointClick = useCallback((nodeId: string, snapPointId: string, x: number, y: number) => {
+    // Check if active layer is locked - prevent creating connections
+    const activeLayer = getActiveLayer();
+    if (activeLayer?.locked) {
+      return; // Prevent creating connections when layer is locked
+    }
+    
     // Use selected line type or default to 'straight' for piping
     const pipeLineType = selectedLineType || 'straight';
 
@@ -485,7 +536,7 @@ const Canvas = () => {
         });
       }
     }
-  }, [connectingSnapPoint, nodes, addConnection, selectedLineType, addLine, activeLayerId, addLineToLayer]);
+  }, [connectingSnapPoint, nodes, addConnection, selectedLineType, addLine, activeLayerId, addLineToLayer, getActiveLayer]);
 
   // Close context menu when clicking elsewhere and handle escape key
   React.useEffect(() => {
@@ -529,26 +580,38 @@ const Canvas = () => {
       // Delete shortcuts
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedLineId) {
-          deleteLine(selectedLineId);
-          setSelectedLineId(null);
-          setDraggedPointIndex(null);
-          setIsDraggingPipe(false);
+          // Check if the line's layer is locked
+          const lineLayer = layers.find(layer => layer.lines.includes(selectedLineId));
+          const isLineLayerLocked = lineLayer?.locked ?? false;
+          
+          if (!isLineLayerLocked) {
+            deleteLine(selectedLineId);
+            setSelectedLineId(null);
+            setDraggedPointIndex(null);
+            setIsDraggingPipe(false);
+          }
         }
         if (selectedNodeId) {
-          const nodeToDelete = nodes.find(n => n.id === selectedNodeId);
-          if (nodeToDelete && nodeToDelete.snapPoints) {
-            nodeToDelete.snapPoints.forEach(snapPoint => {
-              const relatedConnections = connections.filter(conn => 
-                conn.fromSnapId === snapPoint.id || conn.toSnapId === snapPoint.id
-              );
-              relatedConnections.forEach(conn => {
-                const pipeLineId = `pipe-${conn.id}`;
-                deleteLine(pipeLineId);
+          // Check if the node's layer is locked
+          const nodeLayer = layers.find(layer => layer.nodes.includes(selectedNodeId));
+          const isNodeLayerLocked = nodeLayer?.locked ?? false;
+          
+          if (!isNodeLayerLocked) {
+            const nodeToDelete = nodes.find(n => n.id === selectedNodeId);
+            if (nodeToDelete && nodeToDelete.snapPoints) {
+              nodeToDelete.snapPoints.forEach(snapPoint => {
+                const relatedConnections = connections.filter(conn => 
+                  conn.fromSnapId === snapPoint.id || conn.toSnapId === snapPoint.id
+                );
+                relatedConnections.forEach(conn => {
+                  const pipeLineId = `pipe-${conn.id}`;
+                  deleteLine(pipeLineId);
+                });
               });
-            });
+            }
+            deleteNode(selectedNodeId);
+            setSelectedNodeId(null);
           }
-          deleteNode(selectedNodeId);
-          setSelectedNodeId(null);
         }
       }
       
@@ -598,7 +661,7 @@ const Canvas = () => {
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [contextMenu.visible, pipeContextMenu.visible, addingSnapPoint.nodeId, movingSnapPoint.nodeId, connectingSnapPoint.snapPointId, transformMode, selectedLineId, deleteLine, isDraggingPipe]);
+  }, [contextMenu.visible, pipeContextMenu.visible, addingSnapPoint.nodeId, movingSnapPoint.nodeId, connectingSnapPoint.snapPointId, transformMode, selectedLineId, deleteLine, isDraggingPipe, layers, nodes, connections, deleteNode, setSelectedNodeId, setSelectedLineId, setDraggedPointIndex, setIsDraggingPipe]);
 
   // Update pipe lines when connections change (to sync with moving components)
   React.useEffect(() => {
@@ -641,6 +704,11 @@ const Canvas = () => {
     const stage = e.target.getStage();
     const pos = stage.getRelativePointerPosition();
 
+    // Check if active layer is locked - prevent drawing and interactions
+    const activeLayer = getActiveLayer();
+    if (activeLayer?.locked) {
+      return; // Prevent all interactions when layer is locked
+    }
     
     // Check if clicking on end point circle
     if (e.target.getClassName() === 'Circle' && e.target.attrs.id?.startsWith('endpoint-')) {
@@ -723,11 +791,17 @@ const Canvas = () => {
     setDrawingPoints([startPos.x, startPos.y]);
     setStartSnapPoint(snapId);
     setIsDrawing(true);
-  }, [selectedLineType, setIsDrawing, snapToGrid, movingSnapPoint, updateSnapPointPosition, addingSnapPoint, nodes, addSnapPoint, handlePipeMouseDown, setSelectedLineId, setDraggedPointIndex, setIsDraggingPipe]);
+  }, [selectedLineType, setIsDrawing, snapToGrid, movingSnapPoint, updateSnapPointPosition, addingSnapPoint, nodes, addSnapPoint, handlePipeMouseDown, setSelectedLineId, setDraggedPointIndex, setIsDraggingPipe, getActiveLayer]);
 
   const handleMouseMove = useCallback((e: any) => {
     const stage = e.target.getStage();
     const pos = stage.getRelativePointerPosition();
+    
+    // Check if active layer is locked - prevent moving operations
+    const activeLayer = getActiveLayer();
+    if (activeLayer?.locked) {
+      return; // Prevent moving operations when layer is locked
+    }
     
     // Handle pipe extension (dragging end points)
     if (selectedLineId && draggedPointIndex !== null) {
@@ -847,9 +921,15 @@ const Canvas = () => {
     }
     
     setDrawingPoints([startX, startY, endPos.x, endPos.y]);
-  }, [isDrawing, selectedLineType, drawingPoints, snapToGrid, addingSnapPoint, nodes, connectingSnapPoint, selectedLineId, draggedPointIndex, lines, updateLine, dragOffset, isDraggingPipe, setDragOffset]);
+  }, [isDrawing, selectedLineType, drawingPoints, snapToGrid, addingSnapPoint, nodes, connectingSnapPoint, selectedLineId, draggedPointIndex, lines, updateLine, dragOffset, isDraggingPipe, setDragOffset, getActiveLayer]);
 
   const handleMouseUp = useCallback((e: any) => {
+    // Check if active layer is locked - prevent completing operations
+    const activeLayer = getActiveLayer();
+    if (activeLayer?.locked) {
+      return; // Prevent completing operations when layer is locked
+    }
+    
     // Handle pipe interaction end
     if (selectedLineId && (draggedPointIndex !== null || isDraggingPipe)) {
       setDraggedPointIndex(null);
@@ -920,7 +1000,7 @@ const Canvas = () => {
     setStartSnapPoint(null);
     setNearbySnapPoint(null);
     setIsDrawing(false);
-  }, [isDrawing, selectedLineType, drawingPoints, addLine, addConnection, setIsDrawing, snapToGrid, startSnapPoint, nodes, selectedLineId, draggedPointIndex, setDraggedPointIndex, setDragOffset, isDraggingPipe, setIsDraggingPipe, activeLayerId, addLineToLayer]);
+  }, [isDrawing, selectedLineType, drawingPoints, addLine, addConnection, setIsDrawing, snapToGrid, startSnapPoint, nodes, selectedLineId, draggedPointIndex, setDraggedPointIndex, setDragOffset, isDraggingPipe, setIsDraggingPipe, activeLayerId, addLineToLayer, getActiveLayer]);
 
   // Filter nodes and lines based on layer visibility
   const visibleNodes = useMemo(() => {
@@ -1138,22 +1218,29 @@ const Canvas = () => {
             />
           )}
           
-          {visibleNodes.map((node) => (
-            <CanvasNode
-              key={node.id}
-              node={node}
-              onDragEnd={updateNodePosition}
-              onDragMove={updateNodePosition}
-              onRightClick={handleNodeRightClick}
-              onSnapPointRightClick={handleSnapPointRightClick}
-              onSnapPointClick={handleSnapPointClick}
-              movingSnapPointId={movingSnapPoint.snapPointId}
-              connectingSnapPointId={connectingSnapPoint.snapPointId}
-              isSelected={transformMode === node.id}
-              onSelect={() => {}}
-              onTransform={updateNodeTransform}
-            />
-          ))}
+          {visibleNodes.map((node) => {
+            // Check if the node's layer is locked
+            const nodeLayer = layers.find(layer => layer.nodes.includes(node.id));
+            const isNodeLayerLocked = nodeLayer?.locked ?? false;
+            
+            return (
+              <CanvasNode
+                key={node.id}
+                node={node}
+                onDragEnd={updateNodePosition}
+                onDragMove={updateNodePosition}
+                onRightClick={handleNodeRightClick}
+                onSnapPointRightClick={handleSnapPointRightClick}
+                onSnapPointClick={handleSnapPointClick}
+                movingSnapPointId={movingSnapPoint.snapPointId}
+                connectingSnapPointId={connectingSnapPoint.snapPointId}
+                isSelected={transformMode === node.id}
+                onSelect={() => {}}
+                onTransform={updateNodeTransform}
+                draggable={!isNodeLayerLocked}
+              />
+            );
+          })}
         </Layer>
       </Stage>
       
