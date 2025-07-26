@@ -6,6 +6,8 @@ import { useLineContext } from './LineContext';
 import CanvasNode from './CanvasNode';
 import { getComponentBounds, isPositionWithinBounds, getSnapPointWorldPosition, getSnapPointsNear, updatePipeLines } from '../utils';
 import { getDistanceToLine, findNearestLineSegment, insertPointInPipe, movePipePoint, getPipeControlPoints, movePipe, isEndPoint } from '../utils/pipeUtils';
+import { getAllPipeColors } from '../utils/pipeHelpers';
+import { COLORBLIND_COLORS } from '../constants/colorblindColors';
 
 // Constants
 const GRID_SIZE = 20;
@@ -14,6 +16,8 @@ const ARROW_ANGLE = Math.PI / 6; // 30 degrees
 const LINE_STROKE_WIDTH = 1;
 const LINE_COLOR = '#333';
 const GRID_COLOR = '#ddd';
+
+
 
 // Line type configurations
 const LINE_CONFIGS = {
@@ -51,6 +55,7 @@ const Canvas = () => {
     nodes, 
     connections, 
     addNode, 
+    deleteNode,
     updateNodePosition, 
     updateNodeSize,
     updateNodeTransform,
@@ -98,52 +103,163 @@ const Canvas = () => {
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDraggingPipe, setIsDraggingPipe] = useState(false);
   const [pipeHover, setPipeHover] = useState<string | null>(null);
+  const [pipeContextMenu, setPipeContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    lineId: string | null;
+    showColorDropdown: boolean;
+  }>({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
   
+  
+  const [stageScale, setStageScale] = useState(1);
   
   const width = typeof window !== "undefined" ? window.innerWidth - 490 : 800;
   const height = typeof window !== "undefined" ? window.innerHeight : 600;
 
-  // Memoized grid lines to prevent unnecessary re-renders
+  // State for grid updates
+  const [gridKey, setGridKey] = useState(0);
+  const [showGrid, setShowGrid] = useState(true);
+  const [colorblindMode, setColorblindMode] = useState(false);
+
+  // Complete grid system
   const gridLines = useMemo(() => {
-    const verticalLines = [];
-    const horizontalLines = [];
+    if (!showGrid) return [];
+    
+    const stage = stageRef.current;
+    if (!stage) {
+      // Initial grid when stage is not ready
+      const lines = [];
+      const gridExtent = 2000;
+      
+      for (let x = -gridExtent; x <= gridExtent; x += GRID_SIZE) {
+        lines.push(
+          <Line
+            key={`v-${x}`}
+            points={[x, -gridExtent, x, gridExtent]}
+            stroke={GRID_COLOR}
+            strokeWidth={1}
+          />
+        );
+      }
+      
+      for (let y = -gridExtent; y <= gridExtent; y += GRID_SIZE) {
+        lines.push(
+          <Line
+            key={`h-${y}`}
+            points={[-gridExtent, y, gridExtent, y]}
+            stroke={GRID_COLOR}
+            strokeWidth={1}
+          />
+        );
+      }
+      
+      return lines;
+    }
 
-    // Generate vertical lines
-    for (let i = 0; i < width; i += GRID_SIZE) {
-      verticalLines.push(
+    const scale = stage.scaleX();
+    const pos = stage.position();
+    
+    // Calculate visible world bounds with large padding for infinite feel
+    const padding = Math.max(width, height) * 2 / scale;
+    const worldBounds = {
+      left: (-pos.x / scale) - padding,
+      top: (-pos.y / scale) - padding,
+      right: (-pos.x + width) / scale + padding,
+      bottom: (-pos.y + height) / scale + padding
+    };
+    
+    const startX = Math.floor(worldBounds.left / GRID_SIZE) * GRID_SIZE;
+    const endX = Math.ceil(worldBounds.right / GRID_SIZE) * GRID_SIZE;
+    const startY = Math.floor(worldBounds.top / GRID_SIZE) * GRID_SIZE;
+    const endY = Math.ceil(worldBounds.bottom / GRID_SIZE) * GRID_SIZE;
+    
+    const lines = [];
+    
+    // Vertical lines
+    for (let x = startX; x <= endX; x += GRID_SIZE) {
+      lines.push(
         <Line
-          key={`v-${i}`}
-          points={[i, 0, i, height]}
+          key={`v-${x}`}
+          points={[x, startY, x, endY]}
           stroke={GRID_COLOR}
-          strokeWidth={1}
+          strokeWidth={1 / scale}
         />
       );
     }
-
-    // Generate horizontal lines
-    for (let j = 0; j < height; j += GRID_SIZE) {
-      horizontalLines.push(
+    
+    // Horizontal lines
+    for (let y = startY; y <= endY; y += GRID_SIZE) {
+      lines.push(
         <Line
-          key={`h-${j}`}
-          points={[0, j, width, j]}
+          key={`h-${y}`}
+          points={[startX, y, endX, y]}
           stroke={GRID_COLOR}
-          strokeWidth={1}
+          strokeWidth={1 / scale}
         />
       );
     }
+    
+    return lines;
+  }, [width, height, stageScale, gridKey, showGrid]);
 
-    return [...verticalLines, ...horizontalLines];
-  }, [width, height]);
+  // Update grid on stage changes
+  React.useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
 
-  // Grid snapping function
+    const updateGrid = () => {
+      setGridKey(prev => prev + 1);
+    };
+
+    stage.on('dragend', updateGrid);
+    
+    const timer = setInterval(updateGrid, 100);
+    
+    return () => {
+      stage.off('dragend', updateGrid);
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Grid snapping function with zoom consideration
   const snapToGrid = useCallback((x: number, y: number) => {
     const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
     const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
     return { x: snappedX, y: snappedY };
   }, []);
 
+  // Handle wheel zoom with Konva's built-in functionality
+  const handleWheel = useCallback((e: any) => {
+    e.evt.preventDefault();
+    
+    const stage = stageRef.current;
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+    
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+    
+    const scaleBy = 1.1;
+    let newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    newScale = Math.max(0.25, Math.min(10, newScale));
+    
+    stage.scale({ x: newScale, y: newScale });
+    
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    };
+    stage.position(newPos);
+    
+    setStageScale(newScale);
+    setGridKey(prev => prev + 1);
+  }, []);
+
   // Optimized arrow rendering function
-  const renderArrow = useCallback((points: number[], isStart: boolean = false) => {
+  const renderArrow = useCallback((points: number[], isStart: boolean = false, color: string = LINE_COLOR) => {
     if (points.length < 4) return null;
     
     const [x1, y1, x2, y2] = points;
@@ -171,8 +287,8 @@ const Canvas = () => {
     return (
       <Path
         data={pathData}
-        fill={LINE_COLOR}
-        stroke={LINE_COLOR}
+        fill={color}
+        stroke={color}
         strokeWidth={1}
       />
     );
@@ -181,10 +297,10 @@ const Canvas = () => {
   // Optimized event handlers
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const stage = e.currentTarget;
-    const point = stage.getBoundingClientRect();
-    const x = e.clientX - point.left;
-    const y = e.clientY - point.top;
+    const stage = stageRef.current;
+    const rect = stage.container().getBoundingClientRect();
+    const x = (e.clientX - rect.left - stage.x()) / stage.scaleX();
+    const y = (e.clientY - rect.top - stage.y()) / stage.scaleY();
 
     const nodeType = e.dataTransfer.getData('application/reactflow');
     if (nodeType) {
@@ -365,6 +481,9 @@ const Canvas = () => {
       if (contextMenu.visible) {
         setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
       }
+      if (pipeContextMenu.visible) {
+        setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -377,6 +496,9 @@ const Canvas = () => {
         }
         if (contextMenu.visible) {
           setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
+        }
+        if (pipeContextMenu.visible) {
+          setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
         }
         if (connectingSnapPoint.snapPointId) {
           setConnectingSnapPoint({ snapPointId: null, nodeId: null, previewLine: null });
@@ -392,6 +514,7 @@ const Canvas = () => {
         }
       }
       
+      // Delete shortcuts
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedLineId) {
           deleteLine(selectedLineId);
@@ -399,7 +522,61 @@ const Canvas = () => {
           setDraggedPointIndex(null);
           setIsDraggingPipe(false);
         }
-    
+        if (selectedNodeId) {
+          const nodeToDelete = nodes.find(n => n.id === selectedNodeId);
+          if (nodeToDelete && nodeToDelete.snapPoints) {
+            nodeToDelete.snapPoints.forEach(snapPoint => {
+              const relatedConnections = connections.filter(conn => 
+                conn.fromSnapId === snapPoint.id || conn.toSnapId === snapPoint.id
+              );
+              relatedConnections.forEach(conn => {
+                const pipeLineId = `pipe-${conn.id}`;
+                deleteLine(pipeLineId);
+              });
+            });
+          }
+          deleteNode(selectedNodeId);
+          setSelectedNodeId(null);
+        }
+      }
+      
+      // Zoom shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          const stage = stageRef.current;
+          if (stage) {
+            const newScale = Math.min(10, stage.scaleX() * 1.2);
+            stage.scale({ x: newScale, y: newScale });
+            setStageScale(newScale);
+            setGridKey(prev => prev + 1);
+          }
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          const stage = stageRef.current;
+          if (stage) {
+            const newScale = Math.max(0.25, stage.scaleX() / 1.2);
+            stage.scale({ x: newScale, y: newScale });
+            setStageScale(newScale);
+            setGridKey(prev => prev + 1);
+          }
+        }
+        if (e.key === '0') {
+          e.preventDefault();
+          const stage = stageRef.current;
+          if (stage) {
+            stage.scale({ x: 1, y: 1 });
+            stage.position({ x: 0, y: 0 });
+            setStageScale(1);
+            setGridKey(prev => prev + 1);
+          }
+        }
+      }
+      
+      // Grid toggle shortcut
+      if (e.key === 'g' || e.key === 'G') {
+        setShowGrid(prev => !prev);
       }
     };
 
@@ -409,16 +586,24 @@ const Canvas = () => {
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [contextMenu.visible, addingSnapPoint.nodeId, movingSnapPoint.nodeId, connectingSnapPoint.snapPointId, transformMode, selectedLineId, deleteLine, isDraggingPipe]);
+  }, [contextMenu.visible, pipeContextMenu.visible, addingSnapPoint.nodeId, movingSnapPoint.nodeId, connectingSnapPoint.snapPointId, transformMode, selectedLineId, deleteLine, isDraggingPipe]);
 
   // Update pipe lines when connections change (to sync with moving components)
   React.useEffect(() => {
     const connectionIds = connections.map(conn => `pipe-${conn.id}`);
     
     // Remove lines that no longer have connections
-    lines.forEach(line => {
-      if (line.id.startsWith('pipe-') && !connectionIds.includes(line.id)) {
-        deleteLine(line.id);
+    const linesToRemove = lines.filter(line => 
+      line.id.startsWith('pipe-') && !connectionIds.includes(line.id)
+    );
+    
+    linesToRemove.forEach(line => {
+      deleteLine(line.id);
+      // Also clear selection if the deleted line was selected
+      if (selectedLineId === line.id) {
+        setSelectedLineId(null);
+        setDraggedPointIndex(null);
+        setIsDraggingPipe(false);
       }
     });
     
@@ -437,11 +622,12 @@ const Canvas = () => {
         }
       }
     });
-  }, [connections, lines, updateLine, deleteLine]);
+  }, [connections, lines, updateLine, deleteLine, selectedLineId, setSelectedLineId, setDraggedPointIndex, setIsDraggingPipe]);
 
 
   const handleMouseDown = useCallback((e: any) => {
-    const pos = e.target.getStage().getPointerPosition();
+    const stage = e.target.getStage();
+    const pos = stage.getRelativePointerPosition();
 
     
     // Check if clicking on end point circle
@@ -454,8 +640,8 @@ const Canvas = () => {
       return;
     }
     
-    // Check if clicking on a pipe line
-    if (e.target.getClassName() === 'Line') {
+    // Check if double-clicking on a pipe line
+    if (e.target.getClassName() === 'Line' && e.evt.detail === 2) {
       const lineId = e.target.attrs.id;
 
       if (lineId) {
@@ -528,7 +714,8 @@ const Canvas = () => {
   }, [selectedLineType, setIsDrawing, snapToGrid, movingSnapPoint, updateSnapPointPosition, addingSnapPoint, nodes, addSnapPoint, handlePipeMouseDown, setSelectedLineId, setDraggedPointIndex, setIsDraggingPipe]);
 
   const handleMouseMove = useCallback((e: any) => {
-    const pos = e.target.getStage().getPointerPosition();
+    const stage = e.target.getStage();
+    const pos = stage.getRelativePointerPosition();
     
     // Handle pipe extension (dragging end points)
     if (selectedLineId && draggedPointIndex !== null) {
@@ -661,7 +848,8 @@ const Canvas = () => {
     
     if (!isDrawing || !selectedLineType) return;
     
-    const pos = e.target.getStage().getPointerPosition();
+    const stage = e.target.getStage();
+    const pos = stage.getRelativePointerPosition();
     const startX = drawingPoints[0];
     const startY = drawingPoints[1];
     
@@ -737,12 +925,29 @@ const Canvas = () => {
             hitStrokeWidth={20} // Wider hit area for easier clicking
             onMouseEnter={() => setPipeHover(line.id)}
             onMouseLeave={() => setPipeHover(null)}
+            onContextMenu={(e) => {
+              e.evt.preventDefault();
+              const stage = e.target.getStage();
+              const pos = stage.getPointerPosition();
+              setPipeContextMenu({
+                visible: true,
+                x: pos.x,
+                y: pos.y,
+                lineId: line.id,
+                showColorDropdown: false
+              });
+            }}
+            onDblClick={(e) => {
+              const stage = e.target.getStage();
+              const pos = stage.getRelativePointerPosition();
+              handlePipeMouseDown(line.id, pos);
+            }}
           />
-          {line.type === 'single-arrow' && renderArrow(line.points, false)}
+          {line.type === 'single-arrow' && renderArrow(line.points, false, line.stroke)}
           {line.type === 'double-arrow' && (
             <>
-              {renderArrow(line.points, false)}
-              {renderArrow(line.points, true)}
+              {renderArrow(line.points, false, line.stroke)}
+              {renderArrow(line.points, true, line.stroke)}
             </>
           )}
           {/* Render end point indicators for selected line */}
@@ -793,11 +998,11 @@ const Canvas = () => {
           strokeWidth={lineConfig.strokeWidth}
           dash={lineConfig.dashPattern}
         />
-        {selectedLineType === 'single-arrow' && renderArrow(drawingPoints, false)}
+        {selectedLineType === 'single-arrow' && renderArrow(drawingPoints, false, LINE_COLOR)}
         {selectedLineType === 'double-arrow' && (
           <>
-            {renderArrow(drawingPoints, false)}
-            {renderArrow(drawingPoints, true)}
+            {renderArrow(drawingPoints, false, LINE_COLOR)}
+            {renderArrow(drawingPoints, true, LINE_COLOR)}
           </>
         )}
       </React.Fragment>
@@ -808,12 +1013,19 @@ const Canvas = () => {
     <div
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      style={{ width: '100%', height: '100%', position: 'relative' }}
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        position: 'relative',
+        cursor: !isDrawing && !selectedLineId && !addingSnapPoint.nodeId && !movingSnapPoint.nodeId && !connectingSnapPoint.snapPointId ? 'grab' : 'default'
+      }}
     >
       <Stage 
         ref={stageRef}
         width={width} 
         height={height}
+        draggable={!isDrawing && !selectedLineId && !addingSnapPoint.nodeId && !movingSnapPoint.nodeId && !connectingSnapPoint.snapPointId}
+        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -893,6 +1105,215 @@ const Canvas = () => {
         </Layer>
       </Stage>
       
+      {/* Pipe Context Menu */}
+      {pipeContextMenu.visible && (
+        <div
+          style={{
+            position: 'absolute',
+            left: pipeContextMenu.x,
+            top: pipeContextMenu.y,
+            backgroundColor: 'white',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            padding: '8px 0',
+            minWidth: '220px',
+            maxHeight: '500px',
+            overflowY: 'auto'
+          }}
+        >
+          <div style={{ padding: '8px 16px', fontWeight: 'bold', borderBottom: '1px solid #eee' }}>Pipe Options</div>
+          
+          <div
+            style={{
+              padding: '6px 16px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onClick={() => {
+              if (pipeContextMenu.lineId) {
+                const config = LINE_CONFIGS['straight'];
+                updateLine(pipeContextMenu.lineId, { 
+                  type: 'straight' as any,
+                  strokeWidth: config.strokeWidth,
+                  dashPattern: config.dashPattern
+                });
+              }
+              setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+            }}
+            onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+            onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+          >
+            <div style={{ width: '30px', height: '2px', backgroundColor: '#333' }}></div>
+            <span>Straight</span>
+          </div>
+          
+          <div
+            style={{
+              padding: '6px 16px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onClick={() => {
+              if (pipeContextMenu.lineId) {
+                const config = LINE_CONFIGS['single-arrow'];
+                updateLine(pipeContextMenu.lineId, { 
+                  type: 'single-arrow' as any,
+                  strokeWidth: config.strokeWidth,
+                  dashPattern: config.dashPattern
+                });
+              }
+              setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+            }}
+            onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+            onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: '25px', height: '2px', backgroundColor: '#333' }}></div>
+              <div style={{ width: '0', height: '0', borderLeft: '5px solid #333', borderTop: '3px solid transparent', borderBottom: '3px solid transparent' }}></div>
+            </div>
+            <span>Single Arrow</span>
+          </div>
+          
+          <div
+            style={{
+              padding: '6px 16px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onClick={() => {
+              if (pipeContextMenu.lineId) {
+                const config = LINE_CONFIGS['double-arrow'];
+                updateLine(pipeContextMenu.lineId, { 
+                  type: 'double-arrow' as any,
+                  strokeWidth: config.strokeWidth,
+                  dashPattern: config.dashPattern
+                });
+              }
+              setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+            }}
+            onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+            onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: '0', height: '0', borderRight: '5px solid #333', borderTop: '3px solid transparent', borderBottom: '3px solid transparent' }}></div>
+              <div style={{ width: '20px', height: '2px', backgroundColor: '#333' }}></div>
+              <div style={{ width: '0', height: '0', borderLeft: '5px solid #333', borderTop: '3px solid transparent', borderBottom: '3px solid transparent' }}></div>
+            </div>
+            <span>Double Arrow</span>
+          </div>
+          
+          <div
+            style={{
+              padding: '6px 16px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onClick={() => {
+              if (pipeContextMenu.lineId) {
+                const config = LINE_CONFIGS['dashed'];
+                updateLine(pipeContextMenu.lineId, { 
+                  type: 'dashed' as any,
+                  strokeWidth: config.strokeWidth,
+                  dashPattern: config.dashPattern
+                });
+              }
+              setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+            }}
+            onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+            onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+          >
+            <div style={{ width: '30px', height: '2px', backgroundColor: '#333', backgroundImage: 'repeating-linear-gradient(to right, transparent, transparent 3px, #333 3px, #333 6px)' }}></div>
+            <span>Dashed</span>
+          </div>
+          
+          <div
+            style={{
+              padding: '8px 16px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              borderTop: '1px solid #eee',
+              backgroundColor: colorblindMode ? '#e3f2fd' : 'transparent',
+              fontWeight: 'bold'
+            }}
+            onClick={() => {
+              const newMode = !colorblindMode;
+              setColorblindMode(newMode);
+              
+              // Reset only colorblind colored pipes to basic color when turning off colorblind mode
+              if (!newMode) {
+                const colorblindValues = COLORBLIND_COLORS.map(c => c.value);
+                lines.forEach(line => {
+                  if (colorblindValues.includes(line.stroke)) {
+                    updateLine(line.id, { stroke: LINE_COLOR });
+                  }
+                });
+              }
+            }}
+          >
+            {colorblindMode ? '🎨 Standard Colors' : '♿ Colorblind Mode'}
+          </div>
+          
+          <div style={{ padding: '8px 16px', fontWeight: 'bold', fontSize: '12px', color: '#666' }}>Colors:</div>
+          {(colorblindMode ? COLORBLIND_COLORS : getAllPipeColors()).map((color) => (
+            <div
+              key={color.code}
+              style={{
+                padding: '4px 16px',
+                cursor: 'pointer',
+                fontSize: '11px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onClick={() => {
+                if (pipeContextMenu.lineId) {
+                  updateLine(pipeContextMenu.lineId, { stroke: color.value });
+                }
+                setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+              }}
+              onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+              onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+            >
+              <div style={{ width: '14px', height: '14px', backgroundColor: color.value, border: '1px solid #ccc', borderRadius: '2px' }}></div>
+              <span>{color.code} - {color.description}</span>
+            </div>
+          ))}
+          
+          <div
+            style={{
+              padding: '8px 16px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              borderTop: '1px solid #eee'
+            }}
+            onClick={() => {
+              if (pipeContextMenu.lineId) {
+                deleteLine(pipeContextMenu.lineId);
+              }
+              setPipeContextMenu({ visible: false, x: 0, y: 0, lineId: null, showColorDropdown: false });
+            }}
+            onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+            onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+          >
+            Delete Pipe
+          </div>
+        </div>
+      )}
+      
       {/* Context Menu */}
       {contextMenu.visible && (
         <div
@@ -928,13 +1349,47 @@ const Canvas = () => {
                 style={{
                   padding: '8px 16px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  borderBottom: '1px solid #eee'
                 }}
                 onClick={handleTransformMode}
                 onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
                 onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
               >
                 Transform
+              </div>
+              <div
+                style={{
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#d32f2f'
+                }}
+                onClick={() => {
+                  if (contextMenu.nodeId) {
+                    // Find and delete related pipe lines first
+                    const nodeToDelete = nodes.find(n => n.id === contextMenu.nodeId);
+                    if (nodeToDelete && nodeToDelete.snapPoints) {
+                      nodeToDelete.snapPoints.forEach(snapPoint => {
+                        // Find and delete pipe lines connected to this snap point
+                        const relatedConnections = connections.filter(conn => 
+                          conn.fromSnapId === snapPoint.id || conn.toSnapId === snapPoint.id
+                        );
+                        relatedConnections.forEach(conn => {
+                          const pipeLineId = `pipe-${conn.id}`;
+                          deleteLine(pipeLineId);
+                        });
+                      });
+                    }
+                    // Delete the node (this will also remove connections)
+                    deleteNode(contextMenu.nodeId);
+                  }
+                  setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
+                }}
+                onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#ffebee'}
+                onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+              >
+                Delete Component
               </div>
         </>
           ) : (
@@ -1083,6 +1538,179 @@ const Canvas = () => {
         </div>
       )}
       
+      {/* Zoom Controls */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '20px',
+          right: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          zIndex: 1000
+        }}
+      >
+        <button
+          onClick={() => {
+            const stage = stageRef.current;
+            const newScale = Math.min(10, stage.scaleX() * 1.2);
+            stage.scale({ x: newScale, y: newScale });
+            setStageScale(newScale);
+          }}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            border: '2px solid #333',
+            backgroundColor: 'white',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          +
+        </button>
+        <button
+          onClick={() => {
+            const stage = stageRef.current;
+            const newScale = Math.max(0.25, stage.scaleX() / 1.2);
+            stage.scale({ x: newScale, y: newScale });
+            setStageScale(newScale);
+          }}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            border: '2px solid #333',
+            backgroundColor: 'white',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          −
+        </button>
+        <button
+          onClick={() => {
+            const stage = stageRef.current;
+            stage.scale({ x: 1, y: 1 });
+            stage.position({ x: 0, y: 0 });
+            setStageScale(1);
+          }}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            border: '2px solid #333',
+            backgroundColor: 'white',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          1:1
+        </button>
+      </div>
+      
+      {/* Zoom Indicator */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '20px',
+          left: '20px',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          zIndex: 1000
+        }}
+      >
+        Zoom: {Math.round(stageScale * 100)}%
+      </div>
+      
+      {/* Grid Toggle */}
+      <button
+        onClick={() => setShowGrid(!showGrid)}
+        style={{
+          position: 'absolute',
+          top: '70px',
+          right: '20px',
+          backgroundColor: showGrid ? '#4CAF50' : '#757575',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          padding: '8px 12px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          zIndex: 1000
+        }}
+      >
+        Grid {showGrid ? 'ON' : 'OFF'}
+      </button>
+      
+      {/* Colorblind Mode Toggle */}
+      <button
+        onClick={() => {
+          const newMode = !colorblindMode;
+          setColorblindMode(newMode);
+          
+          // Reset only colorblind colored pipes to basic color when turning off colorblind mode
+          if (!newMode) {
+            const colorblindValues = COLORBLIND_COLORS.map(c => c.value);
+            lines.forEach(line => {
+              if (colorblindValues.includes(line.stroke)) {
+                updateLine(line.id, { stroke: LINE_COLOR });
+              }
+            });
+          }
+        }}
+        style={{
+          position: 'absolute',
+          top: '110px',
+          right: '20px',
+          backgroundColor: colorblindMode ? '#2196F3' : '#757575',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          padding: '8px 12px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          zIndex: 1000
+        }}
+      >
+        ♿ {colorblindMode ? 'ON' : 'OFF'}
+      </button>
+      
+      {/* Pan Instructions */}
+      {!isDrawing && !selectedLineId && !addingSnapPoint.nodeId && !movingSnapPoint.nodeId && !connectingSnapPoint.snapPointId && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            color: 'white',
+            padding: '8px 12px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            zIndex: 1000,
+            opacity: 0.8
+          }}
+        >
+          Drag canvas to pan • Scroll to zoom
+        </div>
+      )}
     
     </div>
   );

@@ -197,12 +197,18 @@ export const findNodeBySnapPointId = (nodes: Node[], snapPointId: string): Node 
  * Calculate component bounds for snap point validation
  */
 export const getComponentBounds = (node: Node, baseSize: number = 120, padding: number = 10) => {
-  const halfSize = baseSize / 2 + padding;
+  // Use actual node dimensions if available, otherwise use base size
+  const width = node.width || baseSize;
+  const height = node.height || baseSize;
+  
+  const halfWidth = width / 2 + padding;
+  const halfHeight = height / 2 + padding;
+  
   return {
-    left: node.x - halfSize,
-    right: node.x + halfSize,
-    top: node.y - halfSize,
-    bottom: node.y + halfSize
+    left: node.x - halfWidth,
+    right: node.x + halfWidth,
+    top: node.y - halfHeight,
+    bottom: node.y + halfHeight
   };
 };
 
@@ -293,6 +299,44 @@ export const updateNodeSizeInNodes = (
 };
 
 /**
+ * Update node transform properties in nodes array - returns updated nodes array
+ */
+export const updateNodeTransformInNodes = (
+  nodes: Node[], 
+  nodeId: string, 
+  transform: Partial<Pick<Node, 'x' | 'y' | 'rotation' | 'scaleX' | 'scaleY' | 'width' | 'height'>>
+): Node[] => {
+  return nodes.map(node => 
+    node.id === nodeId ? { ...node, ...transform } : node
+  );
+};
+
+/**
+ * Recalculate snap point positions after node transform
+ */
+export const recalculateSnapPointsAfterTransform = (
+  node: Node,
+  originalWidth: number,
+  originalHeight: number
+): Node => {
+  if (!node.width || !node.height || !originalWidth || !originalHeight) {
+    return node; // No recalculation needed if dimensions are missing
+  }
+  
+  const widthRatio = node.width / originalWidth;
+  const heightRatio = node.height / originalHeight;
+  
+  return {
+    ...node,
+    snapPoints: node.snapPoints.map(snap => ({
+      ...snap,
+      x: snap.x * widthRatio,
+      y: snap.y * heightRatio
+    }))
+  };
+};
+
+/**
  * Add connection to connections array - returns updated connections array
  */
 export const addConnectionToConnections = (
@@ -366,20 +410,16 @@ const createOrthogonalPath = (from: { x: number; y: number }, to: { x: number; y
     return [from.x, from.y, from.x, to.y];
   }
   
-  // Create proper orthogonal pipe path with 3 segments (like real piping)
-  // Always start horizontal, then vertical, then horizontal to target
-  const midX = from.x + deltaX / 2;
-  
+  // Create L-shaped path: horizontal first, then vertical (simpler and more predictable)
   return [
     from.x, from.y,    // Start point
-    midX, from.y,      // Horizontal segment to middle
-    midX, to.y,        // Vertical segment to target height
-    to.x, to.y         // Final horizontal segment to target
+    to.x, from.y,      // Horizontal to target X
+    to.x, to.y         // Vertical to target Y
   ];
 };
 
 /**
- * Update line paths for pipe connections when nodes move
+ * Update line paths for pipe connections when nodes move or transform
  */
 export const updatePipeLines = (
   lines: any[],
@@ -389,11 +429,9 @@ export const updatePipeLines = (
   return lines.map(line => {
     // Check if this line is a pipe connection (starts with 'pipe-')
     if (line.id.startsWith('pipe-')) {
-      // Find the corresponding connection
-      const connection = connections.find(conn => 
-        // Match by points or create a mapping system
-        JSON.stringify(conn.points) === JSON.stringify(line.points)
-      );
+      // Extract connection ID from pipe line ID
+      const connectionId = line.id.replace('pipe-', '');
+      const connection = connections.find(conn => conn.id === connectionId);
       
       if (connection) {
         // Update the line with the new connection path

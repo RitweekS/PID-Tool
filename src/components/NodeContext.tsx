@@ -9,16 +9,19 @@ import {
   updateSnapPointInNodes,
   updateNodePositionInNodes,
   updateNodeSizeInNodes,
+  updateNodeTransformInNodes,
   addConnectionToConnections,
   removeConnectionFromConnections,
   removeConnectionsForSnapPoint,
-  updateConnectionPaths
+  updateConnectionPaths,
+  recalculateSnapPointsAfterTransform
 } from '../utils';
 
 interface NodeContextType {
   nodes: Node[];
   connections: Connection[];
   addNode: (node: Node) => void;
+  deleteNode: (nodeId: string) => void;
   updateNodePosition: (id: string, x: number, y: number) => void;
   updateNodeSize: (id: string, width: number, height: number) => void;
   updateNodeTransform: (id: string, attrs: any) => void;
@@ -52,6 +55,20 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     setNodes(prev => [...prev, node]);
   };
 
+  const deleteNode = (nodeId: string) => {
+    const nodeToDelete = nodes.find(n => n.id === nodeId);
+    if (nodeToDelete && nodeToDelete.snapPoints) {
+      // Remove all connections related to this node's snap points
+      nodeToDelete.snapPoints.forEach(snapPoint => {
+        setConnections(prev => prev.filter(conn => 
+          conn.fromSnapId !== snapPoint.id && conn.toSnapId !== snapPoint.id
+        ));
+      });
+    }
+    // Remove the node
+    setNodes(prev => prev.filter(n => n.id !== nodeId));
+  };
+
   const updateNodePosition = (id: string, x: number, y: number) => {
     setNodes(prev => {
       const updatedNodes = updateNodePositionInNodes(prev, id, x, y);
@@ -69,25 +86,35 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
 
   const updateNodeTransform = (id: string, attrs: any) => {
     setNodes(prev => {
-      const updatedNodes = prev.map(node => 
-        node.id === id 
-          ? { 
-              ...node, 
-              x: attrs.x, 
-              y: attrs.y, 
-              rotation: attrs.rotation,
-              scaleX: attrs.scaleX,
-              scaleY: attrs.scaleY,
-              width: attrs.width,
-              height: attrs.height
-            } 
-          : node
-      );
+      const targetNode = prev.find(node => node.id === id);
+      if (!targetNode) return prev;
+      
+      // Store original dimensions for snap point recalculation
+      const originalWidth = targetNode.width || 120;
+      const originalHeight = targetNode.height || 120;
+      
+      const updatedNodes = updateNodeTransformInNodes(prev, id, {
+        x: attrs.x,
+        y: attrs.y,
+        rotation: attrs.rotation,
+        scaleX: attrs.scaleX,
+        scaleY: attrs.scaleY,
+        width: attrs.width,
+        height: attrs.height
+      });
+      
+      // Recalculate snap points if dimensions changed
+      const finalNodes = updatedNodes.map(node => {
+        if (node.id === id && (attrs.width !== originalWidth || attrs.height !== originalHeight)) {
+          return recalculateSnapPointsAfterTransform(node, originalWidth, originalHeight);
+        }
+        return node;
+      });
       
       // Update connections when nodes transform
-      setConnections(currentConnections => updateConnectionPaths(currentConnections, updatedNodes));
+      setConnections(currentConnections => updateConnectionPaths(currentConnections, finalNodes));
       
-      return updatedNodes;
+      return finalNodes;
     });
   };
 
@@ -96,19 +123,8 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   };
 
   const removeSnapPoint = (nodeId: string, snapPointId: string) => {
-    // Remove connections associated with this snap point
-    const connectionsToRemove = connections.filter(conn => 
-      conn.fromSnapId === snapPointId || conn.toSnapId === snapPointId
-    );
-    
     setConnections(prev => removeConnectionsForSnapPoint(prev, snapPointId));
     setNodes(prev => removeSnapPointFromNodes(prev, nodeId, snapPointId));
-    
-    // Also remove associated pipe lines
-    connectionsToRemove.forEach(conn => {
-      const pipeLineId = `pipe-${conn.id}`;
-      // This will be handled by the canvas component
-    });
   };
 
   const updateSnapPointPosition = (nodeId: string, snapPointId: string, x: number, y: number) => {
@@ -128,6 +144,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
       nodes,
       connections,
       addNode,
+      deleteNode,
       updateNodePosition,
       updateNodeSize,
       updateNodeTransform,

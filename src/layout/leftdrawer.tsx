@@ -73,264 +73,75 @@ const LeftDrawer = () => {
                     justifyContent: "center",
                     width: "100%",
                     bgcolor: "#424242",
-                    borderRadius: "8px",
+                    borderRadius: "8px 8px 0 0",
                     border: "2px solid #bdbdbd",
+                    borderBottom: "none",
                     paddingTop: "6px",
                     paddingBottom: "6px",
                     color: "#ffffff",
                 }}
             >
-                Pipe Types
+                Pipe
             </Box>
 
             <Box
+                onClick={() => handlePipeTypeClick('single-arrow')}
                 sx={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "8px",
-                    marginBottom: "16px",
+                    cursor: "pointer",
+                    padding: "12px",
+                    borderRadius: "0 0 8px 8px",
+                    border: selectedLineType === 'single-arrow' ? "2px solid #4caf50" : "2px solid #bdbdbd",
+                    borderTop: "none",
+                    backgroundColor: selectedLineType === 'single-arrow' ? "rgba(76, 175, 80, 0.1)" : "white",
+                    "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    position: "relative",
+                    width: "100%",
                 }}
             >
                 <Box
-                    onClick={() => handlePipeTypeClick('straight')}
                     sx={{
-                        cursor: "pointer",
-                        padding: "8px",
-                        borderRadius: "6px",
-                        border: selectedLineType === 'straight' ? "2px solid #4caf50" : "1px solid #e0e0e0",
-                        backgroundColor: selectedLineType === 'straight' ? "rgba(76, 175, 80, 0.1)" : "white",
-                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
                         position: "relative",
-                    }}
-                >
-                    <Box sx={{ width: "60px", height: "3px", backgroundColor: "#424242" }} />
-                    {selectedLineType === 'straight' && (
-                        <Box sx={{
-                            position: "absolute",
-                            top: "-2px",
-                            right: "-2px",
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "50%",
-                            backgroundColor: "#4caf50",
-                            border: "2px solid white",
-                            fontSize: "8px",
-                            color: "white",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "bold"
-                        }}>
-                            ✓
-                        </Box>
-                    )}
-                </Box>
-
-                <Box
-                    onClick={() => handlePipeTypeClick('single-arrow')}
-                    sx={{
-                        cursor: "pointer",
-                        padding: "8px",
-                        borderRadius: "6px",
-                        border: selectedLineType === 'single-arrow' ? "2px solid #4caf50" : "1px solid #e0e0e0",
-                        backgroundColor: selectedLineType === 'single-arrow' ? "rgba(76, 175, 80, 0.1)" : "white",
-                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        position: "relative",
+                        width: "120px",
+                        height: "3px",
+                        backgroundColor: "#424242",
                     }}
                 >
                     <Box
                         sx={{
-                            position: "relative",
-                            width: "60px",
-                            height: "3px",
-                            backgroundColor: "#424242",
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                position: "absolute",
-                                right: "-3px",
-                                top: "-3px",
-                                width: 0,
-                                height: 0,
-                                borderLeft: "6px solid #424242",
-                                borderTop: "4px solid transparent",
-                                borderBottom: "4px solid transparent",
-                            }}
-                        />
-                    </Box>
-                    {selectedLineType === 'single-arrow' && (
-                        <Box sx={{
                             position: "absolute",
-                            top: "-2px",
-                            right: "-2px",
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "50%",
-                            backgroundColor: "#4caf50",
-                            border: "2px solid white",
-                            fontSize: "8px",
-                            color: "white",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "bold"
-                        }}>
-                            ✓
-                        </Box>
-                    )}
+                            right: "-3px",
+                            top: "-3px",
+                            width: 0,
+                            height: 0,
+                            borderLeft: "6px solid #424242",
+                            borderTop: "4px solid transparent",
+                            borderBottom: "4px solid transparent",
+                        }}
+                    />
                 </Box>
-
-                <Box
-                    onClick={() => handlePipeTypeClick('double-arrow')}
-                    sx={{
-                        cursor: "pointer",
-                        padding: "8px",
-                        borderRadius: "6px",
-                        border: selectedLineType === 'double-arrow' ? "2px solid #4caf50" : "1px solid #e0e0e0",
-                        backgroundColor: selectedLineType === 'double-arrow' ? "rgba(76, 175, 80, 0.1)" : "white",
-                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
+                {selectedLineType === 'single-arrow' && (
+                    <Box sx={{
+                        position: "absolute",
+                        top: "-2px",
+                        right: "-2px",
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        backgroundColor: "#4caf50",
+                        border: "2px solid white",
+                        fontSize: "8px",
+                        color: "white",
                         display: "flex",
-                        justifyContent: "center",
                         alignItems: "center",
-                        position: "relative",
-                    }}
-                >
-                    <Box
-                        sx={{
-                            position: "relative",
-                            width: "60px",
-                            height: "3px",
-                            backgroundColor: "#424242",
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                position: "absolute",
-                                left: "-3px",
-                                top: "-3px",
-                                width: 0,
-                                height: 0,
-                                borderRight: "6px solid #424242",
-                                borderTop: "4px solid transparent",
-                                borderBottom: "4px solid transparent",
-                            }}
-                        />
-                        <Box
-                            sx={{
-                                position: "absolute",
-                                right: "-3px",
-                                top: "-3px",
-                                width: 0,
-                                height: 0,
-                                borderLeft: "6px solid #424242",
-                                borderTop: "4px solid transparent",
-                                borderBottom: "4px solid transparent",
-                            }}
-                        />
-                    </Box>
-                    {selectedLineType === 'double-arrow' && (
-                        <Box sx={{
-                            position: "absolute",
-                            top: "-2px",
-                            right: "-2px",
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "50%",
-                            backgroundColor: "#4caf50",
-                            border: "2px solid white",
-                            fontSize: "8px",
-                            color: "white",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "bold"
-                        }}>
-                            ✓
-                        </Box>
-                    )}
-                </Box>
-
-                <Box
-                    onClick={() => handlePipeTypeClick('dashed')}
-                    sx={{
-                        cursor: "pointer",
-                        padding: "8px",
-                        borderRadius: "6px",
-                        border: selectedLineType === 'dashed' ? "2px solid #4caf50" : "1px solid #e0e0e0",
-                        backgroundColor: selectedLineType === 'dashed' ? "rgba(76, 175, 80, 0.1)" : "white",
-                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
-                        display: "flex",
                         justifyContent: "center",
-                        alignItems: "center",
-                        position: "relative",
-                    }}
-                >
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "3px",
-                            width: "60px",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                width: "8px",
-                                height: "3px",
-                                backgroundColor: "#424242",
-                            }}
-                        />
-                        <Box
-                            sx={{
-                                width: "8px",
-                                height: "3px",
-                                backgroundColor: "#424242",
-                            }}
-                        />
-                        <Box
-                            sx={{
-                                width: "8px",
-                                height: "3px",
-                                backgroundColor: "#424242",
-                            }}
-                        />
-                        <Box
-                            sx={{
-                                width: "8px",
-                                height: "3px",
-                                backgroundColor: "#424242",
-                            }}
-                        />
+                        fontWeight: "bold"
+                    }}>
+                        ✓
                     </Box>
-                    {selectedLineType === 'dashed' && (
-                        <Box sx={{
-                            position: "absolute",
-                            top: "-2px",
-                            right: "-2px",
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "50%",
-                            backgroundColor: "#4caf50",
-                            border: "2px solid white",
-                            fontSize: "8px",
-                            color: "white",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "bold"
-                        }}>
-                            ✓
-                        </Box>
-                    )}
-                </Box>
+                )}
             </Box>
 
             <Box

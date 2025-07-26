@@ -85,9 +85,9 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
       const scaleX = groupNode.scaleX();
       const scaleY = groupNode.scaleY();
       
-      // Calculate new dimensions based on current width/height
-      const newWidth = width * scaleX;
-      const newHeight = height * scaleY;
+      // Calculate new dimensions based on original width/height and current scale
+      const newWidth = originalWidth * scaleX;
+      const newHeight = originalHeight * scaleY;
       
       onTransform(node.id, {
         x: groupNode.x(),
