@@ -16,6 +16,7 @@ interface LayerContextType {
   activeLayerId: string | null;
   addLayer: (name?: string) => void;
   deleteLayer: (layerId: string, onDeleteNodes?: (nodeIds: string[]) => void, onDeleteLines?: (lineIds: string[]) => void) => void;
+  mergeLayers: (layerIds: string[], newLayerName: string) => void;
   renameLayer: (layerId: string, newName: string) => void;
   toggleLayerVisibility: (layerId: string) => void;
   toggleLayerLock: (layerId: string) => void;
@@ -73,8 +74,8 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
   };
 
   const deleteLayer = (layerId: string, onDeleteNodes?: (nodeIds: string[]) => void, onDeleteLines?: (lineIds: string[]) => void) => {
-    if (layerId === 'default-layer') {
-      // Don't allow deletion of default layer
+    // Don't allow deletion if this is the last layer
+    if (layers.length <= 1) {
       return;
     }
     
@@ -94,12 +95,53 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
     setLayers(prev => {
       const updatedLayers = prev.filter(layer => layer.id !== layerId);
       
-      // If we're deleting the active layer, switch to default layer
+      // If we're deleting the active layer, switch to the first available layer
       if (activeLayerId === layerId) {
-        setActiveLayerId('default-layer');
+        if (updatedLayers.length > 0) {
+          setActiveLayerId(updatedLayers[0].id);
+        }
       }
       
       return updatedLayers;
+    });
+  };
+
+  const mergeLayers = (layerIds: string[], newLayerName: string) => {
+    if (layerIds.length < 2) return;
+
+    const nodesToMerge: string[] = [];
+    const linesToMerge: string[] = [];
+
+    // Collect all nodes and lines from layers to be merged
+    layerIds.forEach(layerId => {
+      const layer = getLayerById(layerId);
+      if (layer) {
+        nodesToMerge.push(...layer.nodes);
+        linesToMerge.push(...layer.lines);
+      }
+    });
+
+    const newLayerId = `merged-layer-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const newLayer: Layer = {
+      id: newLayerId,
+      name: newLayerName,
+      visible: true,
+      locked: false,
+      nodes: nodesToMerge,
+      lines: linesToMerge,
+      createdAt: new Date(),
+    };
+
+    // Add new merged layer and remove old layers
+    setLayers(prev => {
+      const updatedLayers = prev.filter(layer => !layerIds.includes(layer.id));
+      
+      // If we're merging the active layer, switch to the new merged layer
+      if (activeLayerId && layerIds.includes(activeLayerId)) {
+        setActiveLayerId(newLayerId);
+      }
+      
+      return [...updatedLayers, newLayer];
     });
   };
 
@@ -181,6 +223,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       activeLayerId,
       addLayer,
       deleteLayer,
+      mergeLayers,
       renameLayer,
       toggleLayerVisibility,
       toggleLayerLock,

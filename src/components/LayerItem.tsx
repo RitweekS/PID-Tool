@@ -6,21 +6,27 @@ import { Layer } from './LayerContext';
 interface LayerItemProps {
   layer: Layer;
   isActive: boolean;
+  isSelected?: boolean;
+  totalLayers: number; // Add new prop for total number of layers
   onToggleVisibility: () => void;
   onToggleLock: () => void;
   onDelete: () => void;
   onRename: (newName: string) => void;
   onSelect: () => void;
+  onToggleSelection?: () => void;
 }
 
 const LayerItem: React.FC<LayerItemProps> = ({
   layer,
   isActive,
+  isSelected = false,
+  totalLayers,
   onToggleVisibility,
   onToggleLock,
   onDelete,
   onRename,
   onSelect,
+  onToggleSelection,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
@@ -67,16 +73,52 @@ const LayerItem: React.FC<LayerItemProps> = ({
         alignItems: "center",
         padding: "6px 8px",
         borderRadius: "4px",
-        border: isActive ? "2px solid #1976d2" : "1px solid #e0e0e0",
-        backgroundColor: isActive ? "rgba(25, 118, 210, 0.1)" : "#ffffff",
+        border: isActive ? "2px solid #1976d2" : isSelected ? "2px solid #4caf50" : "1px solid #e0e0e0",
+        backgroundColor: isActive ? "rgba(25, 118, 210, 0.1)" : isSelected ? "rgba(76, 175, 80, 0.1)" : "#ffffff",
         cursor: "pointer",
         position: "relative", // Add position relative for menu positioning
         "&:hover": {
-            backgroundColor: isActive ? "rgba(25, 118, 210, 0.2)" : "rgba(0, 0, 0, 0.05)",
+            backgroundColor: isActive ? "rgba(25, 118, 210, 0.2)" : isSelected ? "rgba(76, 175, 80, 0.2)" : "rgba(0, 0, 0, 0.05)",
         },
       }}
       onClick={onSelect}
     >
+      {/* Selection Checkbox */}
+      {onToggleSelection && (
+        <Box
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelection();
+          }}
+          sx={{
+            width: '16px',
+            height: '16px',
+            border: '2px solid #ccc',
+            borderRadius: '2px',
+            backgroundColor: isSelected ? '#4caf50' : 'transparent',
+            marginRight: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            '&:hover': {
+              borderColor: '#4caf50',
+            },
+          }}
+        >
+          {isSelected && (
+            <Box
+              sx={{
+                width: '8px',
+                height: '8px',
+                backgroundColor: 'white',
+                borderRadius: '1px',
+              }}
+            />
+          )}
+        </Box>
+      )}
+
       {/* Layer Name */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {isEditing ? (
@@ -166,7 +208,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
         </IconButton>
 
         {/* Delete Button */}
-        {layer.id !== 'default-layer' && (
+        {totalLayers > 1 && (
           <IconButton
             size="small"
             onClick={(e) => {

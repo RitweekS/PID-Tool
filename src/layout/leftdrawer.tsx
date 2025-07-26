@@ -2,13 +2,18 @@ import {
     Box,
     Paper,
     Button,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
 } from "@mui/material";
-import React from 'react'
+import React, { useState } from 'react'
 import { useLineContext } from '../components/LineContext'
 import { useLayerContext } from '../components/LayerContext'
 import { useNodeContext } from '../components/NodeContext'
 import LayerItem from '../components/LayerItem'
-import { Add } from '@mui/icons-material'
+import { Add, CallMerge, Check } from '@mui/icons-material'
 
 const LeftDrawer = () => {
   const { selectedLineType, setSelectedLineType, deleteLine } = useLineContext()
@@ -18,11 +23,18 @@ const LeftDrawer = () => {
     activeLayerId, 
     addLayer, 
     deleteLayer, 
+    mergeLayers,
     renameLayer, 
     toggleLayerVisibility, 
     toggleLayerLock, 
     setActiveLayer 
   } = useLayerContext()
+  
+  // Merge functionality state
+  const [isMergeMode, setIsMergeMode] = useState(false);
+  const [selectedLayers, setSelectedLayers] = useState<string[]>([]);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [mergeLayerName, setMergeLayerName] = useState('');
   
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
     const nodeType = event.currentTarget.getAttribute('data-node-id')
@@ -69,6 +81,45 @@ const LeftDrawer = () => {
     );
   };
 
+  // Merge functionality handlers
+  const handleToggleMergeMode = () => {
+    setIsMergeMode(!isMergeMode);
+    if (isMergeMode) {
+      setSelectedLayers([]);
+    }
+  };
+
+  const handleToggleLayerSelection = (layerId: string) => {
+    setSelectedLayers(prev => {
+      if (prev.includes(layerId)) {
+        return prev.filter(id => id !== layerId);
+      } else {
+        return [...prev, layerId];
+      }
+    });
+  };
+
+  const handleMergeLayers = () => {
+    if (selectedLayers.length >= 2) {
+      setShowMergeDialog(true);
+    }
+  };
+
+  const handleConfirmMerge = () => {
+    if (mergeLayerName.trim() && selectedLayers.length >= 2) {
+      mergeLayers(selectedLayers, mergeLayerName.trim());
+      setSelectedLayers([]);
+      setIsMergeMode(false);
+      setShowMergeDialog(false);
+      setMergeLayerName('');
+    }
+  };
+
+  const handleCancelMerge = () => {
+    setShowMergeDialog(false);
+    setMergeLayerName('');
+  };
+
   return (
     <Box sx={{
         width: "250px",
@@ -90,6 +141,54 @@ const LeftDrawer = () => {
                 boxSizing: "border-box",
             }}
         >
+            {/* Merge Confirmation Dialog */}
+            <Dialog open={showMergeDialog} onClose={handleCancelMerge} maxWidth="sm" fullWidth>
+                <DialogTitle>Merge Layers</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ mb: 2 }}>
+                        <Box sx={{ fontSize: '14px', color: '#666', mb: 1 }}>
+                            Merging {selectedLayers.length} layers:
+                        </Box>
+                        <Box sx={{ fontSize: '12px', color: '#888', fontStyle: 'italic' }}>
+                            {selectedLayers.map(layerId => {
+                                const layer = layers.find(l => l.id === layerId);
+                                return layer ? `${layer.name} (${layer.nodes.length + layer.lines.length} elements)` : '';
+                            }).join(', ')}
+                        </Box>
+                    </Box>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        label="New Layer Name"
+                        type="text"
+                        fullWidth
+                        variant="outlined"
+                        value={mergeLayerName}
+                        onChange={(e) => setMergeLayerName(e.target.value)}
+                        placeholder="Enter name for merged layer"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                handleConfirmMerge();
+                            }
+                        }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCancelMerge} color="primary">
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleConfirmMerge} 
+                        color="primary" 
+                        variant="contained"
+                        disabled={!mergeLayerName.trim()}
+                    >
+                        Merge Layers
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Components Section */}
             <Paper
                 sx={{
                     fontSize: "16px",
@@ -492,20 +591,49 @@ const LeftDrawer = () => {
                 }}
             >
                 <span>Layers</span>
-                <Button
-                    onClick={() => addLayer()}
-                    sx={{
-                        minWidth: "auto",
-                        padding: "2px 2px",
-                        // fontSize: "12px",
-                        color: "#ffffff",
-                        "&:hover": {
-                            backgroundColor: "rgba(255, 255, 255, 0.2)",
-                        },
-                    }}
-                >
-                    <Add />
-                </Button>
+                <Box sx={{ display: 'flex', gap: '4px' }}>
+                    <Button
+                        onClick={handleToggleMergeMode}
+                        sx={{
+                            minWidth: "auto",
+                            padding: "2px 2px",
+                            color: isMergeMode ? "#4caf50" : "#ffffff",
+                            "&:hover": {
+                                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                            },
+                        }}
+                    >
+                        <CallMerge sx={{ fontSize: "16px" }} />
+                    </Button>
+                    {isMergeMode && selectedLayers.length >= 2 && (
+                        <Button
+                            onClick={handleMergeLayers}
+                            sx={{
+                                minWidth: "auto",
+                                padding: "2px 2px",
+                                color: "#4caf50",
+                                "&:hover": {
+                                    backgroundColor: "rgba(76, 175, 80, 0.2)",
+                                },
+                            }}
+                        >
+                            <Check sx={{ fontSize: "16px" }} />
+                        </Button>
+                    )}
+                    <Button
+                        onClick={() => addLayer()}
+                        sx={{
+                            minWidth: "auto",
+                            padding: "2px 2px",
+                            color: "#ffffff",
+                            "&:hover": {
+                                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                            },
+                        }}
+                    >
+                        <Add />
+                    </Button>
+                </Box>
             </Box>
 
             {/* Layers List */}
@@ -528,11 +656,14 @@ const LeftDrawer = () => {
                         key={layer.id}
                         layer={layer}
                         isActive={activeLayerId === layer.id}
+                        isSelected={isMergeMode && selectedLayers.includes(layer.id)}
+                        totalLayers={layers.length}
                         onToggleVisibility={() => toggleLayerVisibility(layer.id)}
                         onToggleLock={() => toggleLayerLock(layer.id)}
                         onDelete={() => handleDeleteLayer(layer.id)}
                         onRename={(newName) => renameLayer(layer.id, newName)}
                         onSelect={() => setActiveLayer(layer.id)}
+                        onToggleSelection={isMergeMode ? () => handleToggleLayerSelection(layer.id) : undefined}
                     />
                 ))}
             </Box>
