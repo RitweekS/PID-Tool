@@ -27,6 +27,9 @@ export interface Node {
   snapPoints: SnapPoint[];
   width?: number;
   height?: number;
+  rotation?: number;
+  scaleX?: number;
+  scaleY?: number;
 }
 
 /**
@@ -91,9 +94,20 @@ export const getSnapPointWorldPosition = (nodes: Node[], snapPointId: string): {
   for (const node of nodes) {
     const snapPoint = node.snapPoints.find(sp => sp.id === snapPointId);
     if (snapPoint) {
+      // Apply transformations
+      const cos = Math.cos((node.rotation || 0) * Math.PI / 180);
+      const sin = Math.sin((node.rotation || 0) * Math.PI / 180);
+      const scaleX = node.scaleX || 1;
+      const scaleY = node.scaleY || 1;
+      
+      const scaledX = snapPoint.x * scaleX;
+      const scaledY = snapPoint.y * scaleY;
+      const rotatedX = scaledX * cos - scaledY * sin;
+      const rotatedY = scaledX * sin + scaledY * cos;
+      
       return {
-        x: node.x + snapPoint.x,
-        y: node.y + snapPoint.y
+        x: node.x + rotatedX,
+        y: node.y + rotatedY
       };
     }
   }
@@ -113,9 +127,20 @@ export const getSnapPointsNear = (
   
   for (const node of nodes) {
     for (const snapPoint of node.snapPoints) {
+      // Apply transformations
+      const cos = Math.cos((node.rotation || 0) * Math.PI / 180);
+      const sin = Math.sin((node.rotation || 0) * Math.PI / 180);
+      const scaleX = node.scaleX || 1;
+      const scaleY = node.scaleY || 1;
+      
+      const scaledX = snapPoint.x * scaleX;
+      const scaledY = snapPoint.y * scaleY;
+      const rotatedX = scaledX * cos - scaledY * sin;
+      const rotatedY = scaledX * sin + scaledY * cos;
+      
       const worldPos = {
-        x: node.x + snapPoint.x,
-        y: node.y + snapPoint.y
+        x: node.x + rotatedX,
+        y: node.y + rotatedY
       };
       
       const distance = Math.sqrt(

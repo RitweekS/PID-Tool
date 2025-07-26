@@ -8,6 +8,7 @@ export interface Line {
   stroke: string;
   strokeWidth: number;
   dashPattern?: number[];
+  connectionId?: string;
 }
 
 interface LineContextType {
@@ -19,6 +20,10 @@ interface LineContextType {
   setSelectedLineType: (type: string | null) => void;
   isDrawing: boolean;
   setIsDrawing: (drawing: boolean) => void;
+  selectedLineId: string | null;
+  setSelectedLineId: (id: string | null) => void;
+  movingLineId: string | null;
+  setMovingLineId: (id: string | null) => void;
 }
 
 const LineContext = createContext<LineContextType | undefined>(undefined);
@@ -39,6 +44,8 @@ export const LineProvider: React.FC<LineProviderProps> = ({ children }) => {
   const [lines, setLines] = useState<Line[]>([]);
   const [selectedLineType, setSelectedLineType] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [movingLineId, setMovingLineId] = useState<string | null>(null);
 
   const addLine = (line: Line) => {
     setLines(prev => [...prev, line]);
@@ -64,6 +71,10 @@ export const LineProvider: React.FC<LineProviderProps> = ({ children }) => {
       setSelectedLineType,
       isDrawing,
       setIsDrawing,
+      selectedLineId,
+      setSelectedLineId,
+      movingLineId,
+      setMovingLineId,
     }}>
       {children}
     </LineContext.Provider>

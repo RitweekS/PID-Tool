@@ -1,116 +1,617 @@
-import { Box, Typography, Divider } from '@mui/material'
+import {
+    Box,
+    Paper,
+} from "@mui/material";
 import React from 'react'
-import DraggableNode from '../components/DraggableNode'
-import LineDrawingTool from '../components/LineDrawingTool'
+import { useLineContext } from '../components/LineContext'
 
 const LeftDrawer = () => {
-  const nodeTypes = [
-    {
-      type: 'compressor',
-      svgPath: '/Compressor.svg',
-      label: 'Compressor'
-    },
-    {
-      type: 'condenser',
-      svgPath: '/condenser.svg',
-      label: 'Condenser'
-    },
-    {
-      type: 'evaporator',
-      svgPath: '/Evaporators.svg',
-      label: 'Evaporator'
-    },
-    {
-      type: 'heatExchanger',
-      svgPath: '/HeatExchanger.svg',
-      label: 'Heat Exchanger'
+  const { selectedLineType, setSelectedLineType } = useLineContext()
+  
+  const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
+    const nodeType = event.currentTarget.getAttribute('data-node-id')
+    if (nodeType) {
+      event.dataTransfer.setData('application/reactflow', nodeType)
+      event.dataTransfer.effectAllowed = 'move'
     }
-  ];
-
-  const lineTypes = [
-    {
-      type: 'straight' as const,
-      label: 'Straight Line',
-      icon: (
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <line x1="5" y1="20" x2="35" y2="20" stroke="#333" strokeWidth="3"/>
-        </svg>
-      )
-    },
-    {
-      type: 'single-arrow' as const,
-      label: 'Single Arrow',
-      icon: (
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <line x1="5" y1="20" x2="30" y2="20" stroke="#333" strokeWidth="3"/>
-          <polygon points="30,20 25,15 25,25" fill="#333"/>
-        </svg>
-      )
-    },
-    {
-      type: 'double-arrow' as const,
-      label: 'Double Arrow',
-      icon: (
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <line x1="10" y1="20" x2="30" y2="20" stroke="#333" strokeWidth="3"/>
-          <polygon points="10,20 15,15 15,25" fill="#333"/>
-          <polygon points="30,20 25,15 25,25" fill="#333"/>
-        </svg>
-      )
-    },
-    {
-      type: 'dashed' as const,
-      label: 'Dashed Line',
-      icon: (
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <line x1="5" y1="20" x2="35" y2="20" stroke="#333" strokeWidth="3" strokeDasharray="5,5"/>
-        </svg>
-      )
-    }
-  ];
+  }
+  
+  const handlePipeTypeClick = (pipeType: string) => {
+    setSelectedLineType(selectedLineType === pipeType ? null : pipeType)
+  }
 
   return (
     <Box sx={{
-        width: '250px',
-        height: '100%',
+        width: "250px",
         flexShrink: 0,
-        backgroundColor: '#f5f5f5',
-        borderRight: '1px solid #ddd',
-        padding: 2,
-        overflowY: 'auto',
+        backgroundColor: "#e0e0e0",
+        border: "2px solid black",
+        borderBottom: "none",
+        overflow: "auto",
     }}>
-      <Typography variant="h6" sx={{ marginBottom: 2, fontWeight: 'bold' }}>
-        Components
-      </Typography>
-      <Divider sx={{ marginBottom: 2 }} />
-      
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 3 }}>
-        {nodeTypes.map((nodeType) => (
-          <DraggableNode
-            key={nodeType.type}
-            type={nodeType.type}
-            svgPath={nodeType.svgPath}
-            label={nodeType.label}
-          />
-        ))}
-      </Box>
+        <Box
+            sx={{
+                p: "16px 0px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                height: "100%",
+                overflowY: "auto",
+                overflowX: "visible",
+                boxSizing: "border-box",
+            }}
+        >
+            <Paper
+                sx={{
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                    bgcolor: "#424242",
+                    borderRadius: "8px",
+                    border: "2px solid #bdbdbd",
+                    paddingTop: "8px",
+                    paddingBottom: "8px",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    "&:hover": {
+                        bgcolor: "#616161",
+                    },
+                }}
+            >
+                Add Components
+            </Paper>
 
-      <Typography variant="h6" sx={{ marginBottom: 2, fontWeight: 'bold' }}>
-        Drawing Tools
-      </Typography>
-      <Divider sx={{ marginBottom: 2 }} />
-      
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {lineTypes.map((lineType) => (
-          <LineDrawingTool
-            key={lineType.type}
-            type={lineType.type}
-            label={lineType.label}
-            icon={lineType.icon}
-          />
-        ))}
-      </Box>
-    </Box> 
+            <Box
+                sx={{
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                    bgcolor: "#424242",
+                    borderRadius: "8px",
+                    border: "2px solid #bdbdbd",
+                    paddingTop: "6px",
+                    paddingBottom: "6px",
+                    color: "#ffffff",
+                }}
+            >
+                Pipe Types
+            </Box>
+
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "8px",
+                    marginBottom: "16px",
+                }}
+            >
+                <Box
+                    onClick={() => handlePipeTypeClick('straight')}
+                    sx={{
+                        cursor: "pointer",
+                        padding: "8px",
+                        borderRadius: "6px",
+                        border: selectedLineType === 'straight' ? "2px solid #4caf50" : "1px solid #e0e0e0",
+                        backgroundColor: selectedLineType === 'straight' ? "rgba(76, 175, 80, 0.1)" : "white",
+                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        position: "relative",
+                    }}
+                >
+                    <Box sx={{ width: "60px", height: "3px", backgroundColor: "#424242" }} />
+                    {selectedLineType === 'straight' && (
+                        <Box sx={{
+                            position: "absolute",
+                            top: "-2px",
+                            right: "-2px",
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            backgroundColor: "#4caf50",
+                            border: "2px solid white",
+                            fontSize: "8px",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "bold"
+                        }}>
+                            ✓
+                        </Box>
+                    )}
+                </Box>
+
+                <Box
+                    onClick={() => handlePipeTypeClick('single-arrow')}
+                    sx={{
+                        cursor: "pointer",
+                        padding: "8px",
+                        borderRadius: "6px",
+                        border: selectedLineType === 'single-arrow' ? "2px solid #4caf50" : "1px solid #e0e0e0",
+                        backgroundColor: selectedLineType === 'single-arrow' ? "rgba(76, 175, 80, 0.1)" : "white",
+                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        position: "relative",
+                    }}
+                >
+                    <Box
+                        sx={{
+                            position: "relative",
+                            width: "60px",
+                            height: "3px",
+                            backgroundColor: "#424242",
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                right: "-3px",
+                                top: "-3px",
+                                width: 0,
+                                height: 0,
+                                borderLeft: "6px solid #424242",
+                                borderTop: "4px solid transparent",
+                                borderBottom: "4px solid transparent",
+                            }}
+                        />
+                    </Box>
+                    {selectedLineType === 'single-arrow' && (
+                        <Box sx={{
+                            position: "absolute",
+                            top: "-2px",
+                            right: "-2px",
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            backgroundColor: "#4caf50",
+                            border: "2px solid white",
+                            fontSize: "8px",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "bold"
+                        }}>
+                            ✓
+                        </Box>
+                    )}
+                </Box>
+
+                <Box
+                    onClick={() => handlePipeTypeClick('double-arrow')}
+                    sx={{
+                        cursor: "pointer",
+                        padding: "8px",
+                        borderRadius: "6px",
+                        border: selectedLineType === 'double-arrow' ? "2px solid #4caf50" : "1px solid #e0e0e0",
+                        backgroundColor: selectedLineType === 'double-arrow' ? "rgba(76, 175, 80, 0.1)" : "white",
+                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        position: "relative",
+                    }}
+                >
+                    <Box
+                        sx={{
+                            position: "relative",
+                            width: "60px",
+                            height: "3px",
+                            backgroundColor: "#424242",
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                left: "-3px",
+                                top: "-3px",
+                                width: 0,
+                                height: 0,
+                                borderRight: "6px solid #424242",
+                                borderTop: "4px solid transparent",
+                                borderBottom: "4px solid transparent",
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                right: "-3px",
+                                top: "-3px",
+                                width: 0,
+                                height: 0,
+                                borderLeft: "6px solid #424242",
+                                borderTop: "4px solid transparent",
+                                borderBottom: "4px solid transparent",
+                            }}
+                        />
+                    </Box>
+                    {selectedLineType === 'double-arrow' && (
+                        <Box sx={{
+                            position: "absolute",
+                            top: "-2px",
+                            right: "-2px",
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            backgroundColor: "#4caf50",
+                            border: "2px solid white",
+                            fontSize: "8px",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "bold"
+                        }}>
+                            ✓
+                        </Box>
+                    )}
+                </Box>
+
+                <Box
+                    onClick={() => handlePipeTypeClick('dashed')}
+                    sx={{
+                        cursor: "pointer",
+                        padding: "8px",
+                        borderRadius: "6px",
+                        border: selectedLineType === 'dashed' ? "2px solid #4caf50" : "1px solid #e0e0e0",
+                        backgroundColor: selectedLineType === 'dashed' ? "rgba(76, 175, 80, 0.1)" : "white",
+                        "&:hover": { backgroundColor: "rgba(25, 118, 210, 0.1)" },
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        position: "relative",
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            width: "60px",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                width: "8px",
+                                height: "3px",
+                                backgroundColor: "#424242",
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                width: "8px",
+                                height: "3px",
+                                backgroundColor: "#424242",
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                width: "8px",
+                                height: "3px",
+                                backgroundColor: "#424242",
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                width: "8px",
+                                height: "3px",
+                                backgroundColor: "#424242",
+                            }}
+                        />
+                    </Box>
+                    {selectedLineType === 'dashed' && (
+                        <Box sx={{
+                            position: "absolute",
+                            top: "-2px",
+                            right: "-2px",
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            backgroundColor: "#4caf50",
+                            border: "2px solid white",
+                            fontSize: "8px",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "bold"
+                        }}>
+                            ✓
+                        </Box>
+                    )}
+                </Box>
+            </Box>
+
+            <Box
+                sx={{
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                    bgcolor: "#424242",
+                    borderRadius: "8px",
+                    border: "2px solid #bdbdbd",
+                    paddingTop: "6px",
+                    paddingBottom: "6px",
+                    color: "#ffffff",
+                    marginBottom: "8px",
+                }}
+            >
+                Components
+            </Box>
+
+            {/* Components Grid */}
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 1,
+                    width: "100%",
+                    maxWidth: "100%",
+                    marginBottom: "16px",
+                }}
+            >
+                <Paper
+                    draggable
+                    data-node-id="pump"
+                    onDragStart={handleDragStart}
+                    sx={{
+                        aspectRatio: "1",
+                        border: "2px solid #3498db",
+                        cursor: "grab",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#3498db",
+                        userSelect: "none",
+                        gap: "4px",
+                        borderRadius: "10px",
+                        padding: "8px",
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(52, 152, 219, 0.08)",
+                            transform: "translateY(-1px)",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                        },
+                    }}
+                >
+                    <img
+                        src="/Pumps.svg"
+                        alt="Pump"
+                        style={{ width: "28px", height: "28px" }}
+                    />
+                    <span
+                        style={{
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            textAlign: "center",
+                            color: "#2c3e50",
+                        }}
+                    >
+                        Pump
+                    </span>
+                </Paper>
+                <Paper
+                    draggable
+                    data-node-id="evaporators"
+                    onDragStart={handleDragStart}
+                    sx={{
+                        aspectRatio: "1",
+                        border: "2px solid #3498db",
+                        cursor: "grab",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#3498db",
+                        userSelect: "none",
+                        gap: "4px",
+                        borderRadius: "10px",
+                        padding: "8px",
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(52, 152, 219, 0.08)",
+                            transform: "translateY(-1px)",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                        },
+                    }}
+                >
+                    <img
+                        src="/Evaporators.svg"
+                        alt="Evaporator"
+                        style={{ width: "28px", height: "28px" }}
+                    />
+                    <span
+                        style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            textAlign: "center",
+                            color: "#2c3e50",
+                        }}
+                    >
+                        Evaporator
+                    </span>
+                </Paper>
+                <Paper
+                    draggable
+                    data-node-id="compressor"
+                    onDragStart={handleDragStart}
+                    sx={{
+                        aspectRatio: "1",
+                        border: "2px solid #3498db",
+                        cursor: "grab",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#3498db",
+                        userSelect: "none",
+                        gap: "4px",
+                        borderRadius: "10px",
+                        padding: "8px",
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(52, 152, 219, 0.08)",
+                            transform: "translateY(-1px)",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                        },
+                    }}
+                >
+                    <img
+                        src="/Compressor.svg"
+                        alt="Compressor"
+                        style={{ width: "24px", height: "24px" }}
+                    />
+                    <span style={{ fontSize: "7px", textAlign: "center" }}>
+                        Compressor
+                    </span>
+                </Paper>
+                <Paper
+                    draggable
+                    data-node-id="condensers"
+                    onDragStart={handleDragStart}
+                    sx={{
+                        aspectRatio: "1",
+                        border: "2px solid #3498db",
+                        cursor: "grab",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#3498db",
+                        userSelect: "none",
+                        gap: "4px",
+                        borderRadius: "10px",
+                        padding: "8px",
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(52, 152, 219, 0.08)",
+                            transform: "translateY(-1px)",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                        },
+                    }}
+                >
+                    <img
+                        src="/condenser.svg"
+                        alt="Condenser"
+                        style={{ width: "28px", height: "28px" }}
+                    />
+                    <span
+                        style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            textAlign: "center",
+                            color: "#2c3e50",
+                        }}
+                    >
+                        Condenser
+                    </span>
+                </Paper>
+                <Paper
+                    draggable
+                    data-node-id="vessels"
+                    onDragStart={handleDragStart}
+                    sx={{
+                        aspectRatio: "1",
+                        border: "2px solid #3498db",
+                        cursor: "grab",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#3498db",
+                        userSelect: "none",
+                        gap: "4px",
+                        borderRadius: "10px",
+                        padding: "8px",
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(52, 152, 219, 0.08)",
+                            transform: "translateY(-1px)",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                        },
+                    }}
+                >
+                    <img
+                        src="/Vessels.svg"
+                        alt="Vessel"
+                        style={{ width: "28px", height: "28px" }}
+                    />
+                    <span
+                        style={{
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            textAlign: "center",
+                            color: "#2c3e50",
+                        }}
+                    >
+                        Vessel
+                    </span>
+                </Paper>
+                <Paper
+                    draggable
+                    data-node-id="heat-exchangers"
+                    onDragStart={handleDragStart}
+                    sx={{
+                        aspectRatio: "1",
+                        border: "2px solid #3498db",
+                        cursor: "grab",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#3498db",
+                        userSelect: "none",
+                        gap: "4px",
+                        borderRadius: "10px",
+                        padding: "8px",
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        "&:hover": {
+                            backgroundColor: "rgba(52, 152, 219, 0.08)",
+                            transform: "translateY(-1px)",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                        },
+                    }}
+                >
+                    <img
+                        src="/HeatExchanger.svg"
+                        alt="Heat Exchanger"
+                        style={{ width: "28px", height: "28px" }}
+                    />
+                    <span
+                        style={{
+                            fontSize: "9px",
+                            fontWeight: "600",
+                            textAlign: "center",
+                            color: "#2c3e50",
+                        }}
+                    >
+                        Heat Exchanger
+                    </span>
+                </Paper>
+            </Box>
+        </Box>
+    </Box>
   )
 }
 

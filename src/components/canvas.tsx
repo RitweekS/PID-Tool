@@ -1,10 +1,11 @@
 'use client';
 import React, { useRef, useState, useMemo, useCallback } from 'react';
-import { Stage, Layer, Line, Circle } from 'react-konva';
+import { Stage, Layer, Line, Circle, Path } from 'react-konva';
 import { useNodeContext } from './NodeContext';
 import { useLineContext } from './LineContext';
 import CanvasNode from './CanvasNode';
 import { getComponentBounds, isPositionWithinBounds, getSnapPointWorldPosition, getSnapPointsNear, updatePipeLines } from '../utils';
+import { getDistanceToLine, findNearestLineSegment, insertPointInPipe, movePipePoint, getPipeControlPoints, movePipe, isEndPoint } from '../utils/pipeUtils';
 
 // Constants
 const GRID_SIZE = 20;
@@ -16,10 +17,10 @@ const GRID_COLOR = '#ddd';
 
 // Line type configurations
 const LINE_CONFIGS = {
-  straight: { strokeWidth: LINE_STROKE_WIDTH, dashPattern: undefined },
-  'single-arrow': { strokeWidth: LINE_STROKE_WIDTH, dashPattern: undefined },
-  'double-arrow': { strokeWidth: LINE_STROKE_WIDTH, dashPattern: undefined },
-  dashed: { strokeWidth: LINE_STROKE_WIDTH, dashPattern: [8, 4] as number[] }
+  straight: { strokeWidth: LINE_STROKE_WIDTH + 1, dashPattern: undefined },
+  'single-arrow': { strokeWidth: LINE_STROKE_WIDTH + 1, dashPattern: undefined },
+  'double-arrow': { strokeWidth: LINE_STROKE_WIDTH + 1, dashPattern: undefined },
+  dashed: { strokeWidth: LINE_STROKE_WIDTH + 1, dashPattern: [8, 4] as number[] }
 } as const;
 
 // Create strict orthogonal pipe path (only vertical/horizontal segments)
@@ -37,15 +38,11 @@ const createOrthogonalPipePath = (from: { x: number; y: number }, to: { x: numbe
     return [from.x, from.y, from.x, to.y];
   }
   
-  // Create proper orthogonal pipe path with 3 segments (like real piping)
-  // Always start horizontal, then vertical, then horizontal to target
-  const midX = from.x + deltaX / 2;
-  
+  // Create L-shaped path: horizontal first, then vertical
   return [
     from.x, from.y,    // Start point
-    midX, from.y,      // Horizontal segment to middle
-    midX, to.y,        // Vertical segment to target height
-    to.x, to.y         // Final horizontal segment to target
+    to.x, from.y,      // Horizontal to target X
+    to.x, to.y         // Vertical to target Y
   ];
 };
 
@@ -56,17 +53,20 @@ const Canvas = () => {
     addNode, 
     updateNodePosition, 
     updateNodeSize,
+    updateNodeTransform,
     addConnection, 
     addSnapPoint,
     removeSnapPoint,
     updateSnapPointPosition,
     setConnections
   } = useNodeContext();
-  const { lines, addLine, updateLine, selectedLineType, isDrawing, setIsDrawing } = useLineContext();
+  const { lines, addLine, updateLine, deleteLine, selectedLineType, isDrawing, setIsDrawing, selectedLineId, setSelectedLineId, movingLineId, setMovingLineId } = useLineContext();
   const stageRef = useRef<any>(null);
   const [drawingPoints, setDrawingPoints] = useState<number[]>([]);
   const [startSnapPoint, setStartSnapPoint] = useState<string | null>(null);
   const [nearbySnapPoint, setNearbySnapPoint] = useState<{ x: number; y: number } | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [transformMode, setTransformMode] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -94,8 +94,13 @@ const Canvas = () => {
     previewLine: { x1: number; y1: number; x2: number; y2: number; orthogonalPoints?: number[] } | null;
   }>({ snapPointId: null, nodeId: null, previewLine: null });
   
+  const [draggedPointIndex, setDraggedPointIndex] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDraggingPipe, setIsDraggingPipe] = useState(false);
+  const [pipeHover, setPipeHover] = useState<string | null>(null);
   
-  const width = typeof window !== "undefined" ? window.innerWidth - 250 : 800;
+  
+  const width = typeof window !== "undefined" ? window.innerWidth - 490 : 800;
   const height = typeof window !== "undefined" ? window.innerHeight : 600;
 
   // Memoized grid lines to prevent unnecessary re-renders
@@ -160,19 +165,16 @@ const Canvas = () => {
     const arrowPoint2X = arrowX - ARROW_LENGTH * Math.cos(arrowAngle2);
     const arrowPoint2Y = arrowY - ARROW_LENGTH * Math.sin(arrowAngle2);
     
+    // Create filled triangle path
+    const pathData = `M ${arrowX} ${arrowY} L ${arrowPoint1X} ${arrowPoint1Y} L ${arrowPoint2X} ${arrowPoint2Y} Z`;
+    
     return (
-      <React.Fragment>
-        <Line
-          points={[arrowX, arrowY, arrowPoint1X, arrowPoint1Y]}
-          stroke={LINE_COLOR}
-          strokeWidth={LINE_STROKE_WIDTH}
-        />
-        <Line
-          points={[arrowX, arrowY, arrowPoint2X, arrowPoint2Y]}
-          stroke={LINE_COLOR}
-          strokeWidth={LINE_STROKE_WIDTH}
-        />
-      </React.Fragment>
+      <Path
+        data={pathData}
+        fill={LINE_COLOR}
+        stroke={LINE_COLOR}
+        strokeWidth={1}
+      />
     );
   }, []);
 
@@ -184,19 +186,17 @@ const Canvas = () => {
     const x = e.clientX - point.left;
     const y = e.clientY - point.top;
 
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+    const nodeType = e.dataTransfer.getData('application/reactflow');
+    if (nodeType) {
       const newNode = {
-        id: `${data.type}-${Date.now()}`,
-        type: data.type,
+        id: `${nodeType}-${Date.now()}`,
+        type: nodeType,
         x,
         y,
-        svgPath: data.svgPath,
+        svgPath: `/${nodeType === 'pump' ? 'Pumps' : nodeType === 'evaporators' ? 'Evaporators' : nodeType === 'compressor' ? 'Compressor' : nodeType === 'condensers' ? 'condenser' : nodeType === 'vessels' ? 'Vessels' : nodeType === 'heat-exchangers' ? 'HeatExchanger' : nodeType}.svg`,
         snapPoints: [],
       };
       addNode(newNode);
-    } catch (error) {
-      console.error('Error parsing dropped data:', error);
     }
   }, [addNode]);
 
@@ -238,6 +238,14 @@ const Canvas = () => {
     setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
   }, [contextMenu]);
 
+  const handleTransformMode = useCallback(() => {
+    if (!contextMenu.nodeId) return;
+    
+    setTransformMode(contextMenu.nodeId);
+    setSelectedNodeId(contextMenu.nodeId);
+    setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
+  }, [contextMenu]);
+
 
   const handleDeleteSnapPoint = useCallback(() => {
     if (!contextMenu.nodeId || !contextMenu.snapPointId) return;
@@ -261,6 +269,34 @@ const Canvas = () => {
     setContextMenu({ visible: false, x: 0, y: 0, nodeId: null, snapPointId: null, type: 'node' });
   }, [contextMenu, nodes]);
 
+
+  const handlePipeMouseDown = useCallback((lineId: string, clickPos: { x: number; y: number }) => {
+    const line = lines.find(l => l.id === lineId);
+    if (!line) return;
+    
+    setSelectedLineId(lineId);
+    
+    // Check if clicking near an end point (for extension)
+    const controlPoints = getPipeControlPoints(line.points);
+    const clickedPoint = controlPoints.find(point => {
+      const distance = Math.sqrt(Math.pow(point.x - clickPos.x, 2) + Math.pow(point.y - clickPos.y, 2));
+      return distance < 20; // 20px tolerance for end points
+    });
+    
+    if (clickedPoint && isEndPoint(clickedPoint.index, line.points.length)) {
+      // Start extending from end point
+      setDraggedPointIndex(clickedPoint.index);
+      setDragOffset({ x: 0, y: 0 }); // No offset for direct positioning
+    } else {
+      // Start moving entire pipe
+      setIsDraggingPipe(true);
+      const snappedPos = snapToGrid(clickPos.x, clickPos.y);
+      setDragOffset({
+        x: snappedPos.x,
+        y: snappedPos.y
+      });
+    }
+  }, [lines, setSelectedLineId, snapToGrid]);
 
   const handleSnapPointClick = useCallback((nodeId: string, snapPointId: string, x: number, y: number) => {
     // Use selected line type or default to 'straight' for piping
@@ -289,7 +325,7 @@ const Canvas = () => {
             type: pipeLineType as any,
             points: orthogonalPoints,
             stroke: LINE_COLOR,
-            strokeWidth: lineConfig.strokeWidth + 1, // Make pipes slightly thicker
+            strokeWidth: lineConfig.strokeWidth, // Same thickness as other lines
             dashPattern: lineConfig.dashPattern,
             connectionId: connectionId, // Store connection reference
           };
@@ -345,6 +381,24 @@ const Canvas = () => {
         if (connectingSnapPoint.snapPointId) {
           setConnectingSnapPoint({ snapPointId: null, nodeId: null, previewLine: null });
         }
+        if (transformMode) {
+          setTransformMode(null);
+          setSelectedNodeId(null);
+        }
+        if (selectedLineId) {
+          setSelectedLineId(null);
+          setDraggedPointIndex(null);
+          setIsDraggingPipe(false);
+        }
+      }
+      
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedLineId) {
+          deleteLine(selectedLineId);
+          setSelectedLineId(null);
+          setDraggedPointIndex(null);
+          setIsDraggingPipe(false);
+        }
     
       }
     };
@@ -355,10 +409,19 @@ const Canvas = () => {
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [contextMenu.visible, addingSnapPoint.nodeId, movingSnapPoint.nodeId, connectingSnapPoint.snapPointId]);
+  }, [contextMenu.visible, addingSnapPoint.nodeId, movingSnapPoint.nodeId, connectingSnapPoint.snapPointId, transformMode, selectedLineId, deleteLine, isDraggingPipe]);
 
   // Update pipe lines when connections change (to sync with moving components)
   React.useEffect(() => {
+    const connectionIds = connections.map(conn => `pipe-${conn.id}`);
+    
+    // Remove lines that no longer have connections
+    lines.forEach(line => {
+      if (line.id.startsWith('pipe-') && !connectionIds.includes(line.id)) {
+        deleteLine(line.id);
+      }
+    });
+    
     connections.forEach(connection => {
       // Find the corresponding pipe line using connection ID
       const pipeLineId = `pipe-${connection.id}`;
@@ -374,12 +437,41 @@ const Canvas = () => {
         }
       }
     });
-  }, [connections, lines, updateLine]);
+  }, [connections, lines, updateLine, deleteLine]);
 
 
   const handleMouseDown = useCallback((e: any) => {
     const pos = e.target.getStage().getPointerPosition();
-  
+
+    
+    // Check if clicking on end point circle
+    if (e.target.getClassName() === 'Circle' && e.target.attrs.id?.startsWith('endpoint-')) {
+      const [, lineId, pointIndex] = e.target.attrs.id.split('-');
+
+      setSelectedLineId(lineId);
+      setDraggedPointIndex(parseInt(pointIndex));
+      setDragOffset({ x: 0, y: 0 });
+      return;
+    }
+    
+    // Check if clicking on a pipe line
+    if (e.target.getClassName() === 'Line') {
+      const lineId = e.target.attrs.id;
+
+      if (lineId) {
+        handlePipeMouseDown(lineId, pos);
+        return;
+      }
+    }
+    
+    // Deselect node and line if clicking on empty canvas
+    if (e.target === e.target.getStage()) {
+      setSelectedNodeId(null);
+      setTransformMode(null);
+      setSelectedLineId(null);
+      setDraggedPointIndex(null);
+      setIsDraggingPipe(false);
+    }
     
     // Handle snap point adding mode
     if (addingSnapPoint.nodeId) {
@@ -433,10 +525,56 @@ const Canvas = () => {
     setDrawingPoints([startPos.x, startPos.y]);
     setStartSnapPoint(snapId);
     setIsDrawing(true);
-  }, [selectedLineType, setIsDrawing, snapToGrid, movingSnapPoint, updateSnapPointPosition, addingSnapPoint, nodes, addSnapPoint]);
+  }, [selectedLineType, setIsDrawing, snapToGrid, movingSnapPoint, updateSnapPointPosition, addingSnapPoint, nodes, addSnapPoint, handlePipeMouseDown, setSelectedLineId, setDraggedPointIndex, setIsDraggingPipe]);
 
   const handleMouseMove = useCallback((e: any) => {
     const pos = e.target.getStage().getPointerPosition();
+    
+    // Handle pipe extension (dragging end points)
+    if (selectedLineId && draggedPointIndex !== null) {
+      const line = lines.find(l => l.id === selectedLineId);
+      if (line) {
+        const snappedPos = snapToGrid(pos.x, pos.y);
+        
+        // Get the adjacent point to maintain orthogonal connection
+        const adjacentIndex = draggedPointIndex === 0 ? 1 : (line.points.length / 2) - 2;
+        const adjacentX = line.points[adjacentIndex * 2];
+        const adjacentY = line.points[adjacentIndex * 2 + 1];
+        
+        // Determine if we should move horizontally or vertically based on mouse position
+        const deltaX = Math.abs(snappedPos.x - adjacentX);
+        const deltaY = Math.abs(snappedPos.y - adjacentY);
+        
+        let finalPos;
+        if (deltaX > deltaY) {
+          // Move horizontally
+          finalPos = { x: snappedPos.x, y: adjacentY };
+        } else {
+          // Move vertically
+          finalPos = { x: adjacentX, y: snappedPos.y };
+        }
+        
+        const newPoints = movePipePoint(line.points, draggedPointIndex, finalPos);
+        updateLine(selectedLineId, { points: newPoints });
+      }
+      return;
+    }
+    
+    // Handle moving entire pipe
+    if (selectedLineId && isDraggingPipe) {
+      const line = lines.find(l => l.id === selectedLineId);
+      if (line) {
+        const snappedPos = snapToGrid(pos.x, pos.y);
+        const deltaX = snappedPos.x - dragOffset.x;
+        const deltaY = snappedPos.y - dragOffset.y;
+        const newPoints = movePipe(line.points, deltaX, deltaY);
+        updateLine(selectedLineId, { points: newPoints });
+        
+        // Update drag offset for continuous movement
+        setDragOffset({ x: snappedPos.x, y: snappedPos.y });
+      }
+      return;
+    }
     
     // Handle moving snap point preview mode
     if (movingSnapPoint.nodeId) {
@@ -510,9 +648,17 @@ const Canvas = () => {
     }
     
     setDrawingPoints([startX, startY, endPos.x, endPos.y]);
-  }, [isDrawing, selectedLineType, drawingPoints, snapToGrid, addingSnapPoint, nodes, connectingSnapPoint]);
+  }, [isDrawing, selectedLineType, drawingPoints, snapToGrid, addingSnapPoint, nodes, connectingSnapPoint, selectedLineId, draggedPointIndex, lines, updateLine, dragOffset, isDraggingPipe, setDragOffset]);
 
   const handleMouseUp = useCallback((e: any) => {
+    // Handle pipe interaction end
+    if (selectedLineId && (draggedPointIndex !== null || isDraggingPipe)) {
+      setDraggedPointIndex(null);
+      setIsDraggingPipe(false);
+      setDragOffset({ x: 0, y: 0 });
+      return;
+    }
+    
     if (!isDrawing || !selectedLineType) return;
     
     const pos = e.target.getStage().getPointerPosition();
@@ -569,28 +715,66 @@ const Canvas = () => {
     setStartSnapPoint(null);
     setNearbySnapPoint(null);
     setIsDrawing(false);
-  }, [isDrawing, selectedLineType, drawingPoints, addLine, addConnection, setIsDrawing, snapToGrid, startSnapPoint, nodes]);
+  }, [isDrawing, selectedLineType, drawingPoints, addLine, addConnection, setIsDrawing, snapToGrid, startSnapPoint, nodes, selectedLineId, draggedPointIndex, setDraggedPointIndex, setDragOffset, isDraggingPipe, setIsDraggingPipe]);
 
   // Memoized line rendering
   const renderedLines = useMemo(() => {
-    return lines.map((line) => (
-      <React.Fragment key={line.id}>
-        <Line
-          points={line.points}
-          stroke={line.stroke}
-          strokeWidth={line.strokeWidth}
-          dash={line.dashPattern}
-        />
-        {line.type === 'single-arrow' && renderArrow(line.points, false)}
-        {line.type === 'double-arrow' && (
-          <>
-            {renderArrow(line.points, false)}
-            {renderArrow(line.points, true)}
-          </>
-        )}
-      </React.Fragment>
-    ));
-  }, [lines, renderArrow]);
+    return lines.map((line) => {
+      const isSelected = selectedLineId === line.id;
+      const isHovered = pipeHover === line.id;
+      const controlPoints = isSelected ? getPipeControlPoints(line.points) : [];
+      
+      return (
+        <React.Fragment key={line.id}>
+          <Line
+            id={line.id}
+            points={line.points}
+            stroke={isSelected ? '#FF6B35' : isHovered ? '#2196F3' : line.stroke}
+            strokeWidth={isSelected ? line.strokeWidth + 2 : isHovered ? line.strokeWidth + 1 : line.strokeWidth}
+            dash={line.dashPattern}
+            lineCap="round"
+            lineJoin="round"
+            hitStrokeWidth={20} // Wider hit area for easier clicking
+            onMouseEnter={() => setPipeHover(line.id)}
+            onMouseLeave={() => setPipeHover(null)}
+          />
+          {line.type === 'single-arrow' && renderArrow(line.points, false)}
+          {line.type === 'double-arrow' && (
+            <>
+              {renderArrow(line.points, false)}
+              {renderArrow(line.points, true)}
+            </>
+          )}
+          {/* Render end point indicators for selected line */}
+          {isSelected && controlPoints.map((point, index) => {
+            const isEndPt = isEndPoint(index, line.points.length);
+            return (
+              <Circle
+                key={`control-${line.id}-${index}`}
+                id={`endpoint-${line.id}-${index}`}
+                x={point.x}
+                y={point.y}
+                radius={isEndPt ? 8 : 4}
+                fill={isEndPt ? '#4CAF50' : '#FF6B35'}
+                stroke="white"
+                strokeWidth={2}
+                draggable={false}
+                onMouseDown={(e) => {
+                  if (isEndPt) {
+                    e.cancelBubble = true;
+
+                    setSelectedLineId(line.id);
+                    setDraggedPointIndex(index);
+                    setDragOffset({ x: 0, y: 0 });
+                  }
+                }}
+              />
+            );
+          })}
+        </React.Fragment>
+      );
+    });
+  }, [lines, renderArrow, selectedLineId, pipeHover]);
 
   // Note: Connections are now rendered as lines in the line system
   // This maintains data relationships between snap points
@@ -701,6 +885,9 @@ const Canvas = () => {
               onSnapPointClick={handleSnapPointClick}
               movingSnapPointId={movingSnapPoint.snapPointId}
               connectingSnapPointId={connectingSnapPoint.snapPointId}
+              isSelected={transformMode === node.id}
+              onSelect={() => {}}
+              onTransform={updateNodeTransform}
             />
           ))}
         </Layer>
@@ -736,6 +923,18 @@ const Canvas = () => {
                 onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
               >
                 Add Snap Point
+              </div>
+              <div
+                style={{
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+                onClick={handleTransformMode}
+                onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#f5f5f5'}
+                onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'transparent'}
+              >
+                Transform
               </div>
         </>
           ) : (
@@ -836,6 +1035,51 @@ const Canvas = () => {
               Select a line type from left drawer for different pipe styles
             </div>
           )}
+        </div>
+      )}
+      
+      {/* Pipe Manipulation Mode Indicator */}
+      {selectedLineId && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#FF6B35',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            zIndex: 1000
+          }}
+        >
+          {isDraggingPipe ? 'Moving entire pipe' : 
+           draggedPointIndex !== null ? 'Extending pipe from end point' : 
+           'Green circles = drag to extend • Click pipe body to move entire pipe'}
+        </div>
+      )}
+      
+      {/* Pipe Hover Indicator */}
+      {pipeHover && !selectedLineId && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#2196F3',
+            color: 'white',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            zIndex: 1000,
+            opacity: 0.9
+          }}
+        >
+          Click to select pipe for moving/extending
         </div>
       )}
       
