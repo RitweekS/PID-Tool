@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, IconButton, TextField } from '@mui/material';
-import { Visibility, VisibilityOff, Lock, LockOpen, Delete } from '@mui/icons-material';
+import { Box, IconButton, TextField, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
+import { Visibility, VisibilityOff, Lock, LockOpen, Delete, MoreVert, FileDownload, FileUpload } from '@mui/icons-material';
 import { Layer } from './LayerContext';
 
 interface LayerItemProps {
@@ -31,6 +31,11 @@ const LayerItem: React.FC<LayerItemProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Menu states
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState<null | HTMLElement>(null);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
+  const [importMenuAnchor, setImportMenuAnchor] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -66,7 +71,38 @@ const LayerItem: React.FC<LayerItemProps> = ({
     }
   };
 
+  // Menu handlers
+  const handleMoreMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setMoreMenuAnchor(event.currentTarget);
+  };
+
+  const handleMoreMenuClose = () => {
+    setMoreMenuAnchor(null);
+  };
+
+  const handleExportMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setExportMenuAnchor(event.currentTarget);
+  };
+
+  const handleExportMenuClose = () => {
+    setExportMenuAnchor(null);
+    setMoreMenuAnchor(null);
+  };
+
+  const handleImportMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setImportMenuAnchor(event.currentTarget);
+  };
+
+  const handleImportMenuClose = () => {
+    setImportMenuAnchor(null);
+    setMoreMenuAnchor(null);
+  };
+
   return (
+    <>
     <Box
       sx={{
         display: "flex",
@@ -207,31 +243,286 @@ const LayerItem: React.FC<LayerItemProps> = ({
           {layer.locked ? <Lock sx={{ fontSize: "14px" }} /> : <LockOpen sx={{ fontSize: "14px" }} />}
         </IconButton>
 
-        {/* Delete Button */}
-        {totalLayers > 1 && (
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (window.confirm(`Are you sure you want to delete "${layer.name}"? This will permanently remove all elements on this layer.`)) {
-                onDelete();
-              }
-            }}
-            sx={{
-              padding: '4px',
-              color: '#d32f2f',
-              '&:hover': {
-                backgroundColor: 'rgba(211, 47, 47, 0.1)',
-              },
-            }}
-            disableRipple 
-            disableFocusRipple
-          >
-            <Delete sx={{ fontSize: "14px" }} />
-          </IconButton>
-        )}
+        {/* More Menu */}
+        <IconButton
+          size="small"
+          onClick={handleMoreMenuOpen}
+          sx={{
+            padding: '4px',
+            color: '#757575',
+          }}
+          disableRipple
+          disableFocusRipple
+        >
+          <MoreVert sx={{ fontSize: "14px" }} />
+        </IconButton>
       </Box>
     </Box>
+
+    {/* More Menu */}
+    <Menu
+      anchorEl={moreMenuAnchor}
+      open={Boolean(moreMenuAnchor)}
+      onClose={handleMoreMenuClose}
+      onClick={(e) => e.stopPropagation()}
+      PaperProps={{
+        sx: {
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+          border: '1px solid #e0e0e0',
+          minWidth: '160px',
+          '& .MuiMenuItem-root': {
+            fontSize: '13px',
+            padding: '8px 16px',
+            '&:hover': {
+              backgroundColor: '#f5f5f5',
+            },
+          },
+        },
+      }}
+    >
+      <MenuItem onClick={handleExportMenuOpen}>
+        <ListItemIcon>
+          <FileDownload sx={{ fontSize: "16px", color: '#2196f3' }} />
+        </ListItemIcon>
+        <ListItemText 
+          primary="Export" 
+          primaryTypographyProps={{ 
+            fontSize: '13px',
+            fontWeight: 500 
+          }}
+        />
+        <Box sx={{ 
+          width: '16px', 
+          height: '16px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          color: '#757575'
+        }}>
+          ▶
+        </Box>
+      </MenuItem>
+      <MenuItem onClick={handleImportMenuOpen}>
+        <ListItemIcon>
+          <FileUpload sx={{ fontSize: "16px", color: '#9c27b0' }} />
+        </ListItemIcon>
+        <ListItemText 
+          primary="Import" 
+          primaryTypographyProps={{ 
+            fontSize: '13px',
+            fontWeight: 500 
+          }}
+        />
+        <Box sx={{ 
+          width: '16px', 
+          height: '16px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          color: '#757575'
+        }}>
+          ▶
+        </Box>
+      </MenuItem>
+      {totalLayers > 1 && (
+        <MenuItem 
+          onClick={(e) => {
+            e.stopPropagation();
+            handleMoreMenuClose();
+            if (window.confirm(`Are you sure you want to delete "${layer.name}"? This will permanently remove all elements on this layer.`)) {
+              onDelete();
+            }
+          }}
+          sx={{ 
+            color: '#d32f2f',
+            '&:hover': {
+              backgroundColor: '#ffebee',
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Delete sx={{ fontSize: "16px", color: '#d32f2f' }} />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Delete" 
+            primaryTypographyProps={{ 
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#d32f2f'
+            }}
+          />
+        </MenuItem>
+      )}
+    </Menu>
+
+    {/* Export Submenu */}
+    <Menu
+      anchorEl={exportMenuAnchor}
+      open={Boolean(exportMenuAnchor)}
+      onClose={handleExportMenuClose}
+      onClick={(e) => e.stopPropagation()}
+      anchorOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'left',
+      }}
+      PaperProps={{
+        sx: {
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+          border: '1px solid #e0e0e0',
+          minWidth: '140px',
+          '& .MuiMenuItem-root': {
+            fontSize: '12px',
+            padding: '8px 16px',
+            '&:hover': {
+              backgroundColor: '#e3f2fd',
+            },
+          },
+        },
+      }}
+    >
+      <MenuItem onClick={handleExportMenuClose}>
+        <ListItemIcon>
+          <Box sx={{ 
+            width: '16px', 
+            height: '16px', 
+            backgroundColor: '#4caf50', 
+            borderRadius: '2px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '8px',
+            color: 'white',
+            fontWeight: 'bold'
+          }}>
+            J
+          </Box>
+        </ListItemIcon>
+        <ListItemText 
+          primary="Export as JSON" 
+          primaryTypographyProps={{ 
+            fontSize: '12px',
+            fontWeight: 500 
+          }}
+        />
+      </MenuItem>
+      <MenuItem onClick={handleExportMenuClose}>
+        <ListItemIcon>
+          <Box sx={{ 
+            width: '16px', 
+            height: '16px', 
+            backgroundColor: '#ff9800', 
+            borderRadius: '2px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '8px',
+            color: 'white',
+            fontWeight: 'bold'
+          }}>
+            I
+          </Box>
+        </ListItemIcon>
+        <ListItemText 
+          primary="Export as Image" 
+          primaryTypographyProps={{ 
+            fontSize: '12px',
+            fontWeight: 500 
+          }}
+        />
+      </MenuItem>
+    </Menu>
+
+    {/* Import Submenu */}
+    <Menu
+      anchorEl={importMenuAnchor}
+      open={Boolean(importMenuAnchor)}
+      onClose={handleImportMenuClose}
+      onClick={(e) => e.stopPropagation()}
+      anchorOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'left',
+      }}
+      PaperProps={{
+        sx: {
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+          border: '1px solid #e0e0e0',
+          minWidth: '140px',
+          '& .MuiMenuItem-root': {
+            fontSize: '12px',
+            padding: '8px 16px',
+            '&:hover': {
+              backgroundColor: '#f3e5f5',
+            },
+          },
+        },
+      }}
+    >
+      <MenuItem onClick={handleImportMenuClose}>
+        <ListItemIcon>
+          <Box sx={{ 
+            width: '16px', 
+            height: '16px', 
+            backgroundColor: '#4caf50', 
+            borderRadius: '2px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '8px',
+            color: 'white',
+            fontWeight: 'bold'
+          }}>
+            J
+          </Box>
+        </ListItemIcon>
+        <ListItemText 
+          primary="Import from JSON" 
+          primaryTypographyProps={{ 
+            fontSize: '12px',
+            fontWeight: 500 
+          }}
+        />
+      </MenuItem>
+      <MenuItem onClick={handleImportMenuClose}>
+        <ListItemIcon>
+          <Box sx={{ 
+            width: '16px', 
+            height: '16px', 
+            backgroundColor: '#ff9800', 
+            borderRadius: '2px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '8px',
+            color: 'white',
+            fontWeight: 'bold'
+          }}>
+            I
+          </Box>
+        </ListItemIcon>
+        <ListItemText 
+          primary="Import from Image" 
+          primaryTypographyProps={{ 
+            fontSize: '12px',
+            fontWeight: 500 
+          }}
+        />
+      </MenuItem>
+    </Menu>
+  </>
   );
 };
 
