@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Box, IconButton, TextField } from '@mui/material';
-import { Visibility, VisibilityOff, Lock, LockOpen, Delete, Edit } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Lock, LockOpen, Delete } from '@mui/icons-material';
 import { Layer } from './LayerContext';
 
 interface LayerItemProps {
@@ -114,7 +114,13 @@ const LayerItem: React.FC<LayerItemProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <Box>
+          <Box
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              handleEditClick();
+            }}
+            sx={{ cursor: 'text' }}
+          >
             <Box
               sx={{
                 fontSize: '12px',
@@ -156,21 +162,6 @@ const LayerItem: React.FC<LayerItemProps> = ({
           }}
         >
           {layer.locked ? <Lock fontSize="small" /> : <LockOpen fontSize="small" />}
-        </IconButton>
-
-        {/* Edit Button */}
-        <IconButton
-          size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleEditClick();
-          }}
-          sx={{
-            padding: '4px',
-            color: '#757575',
-          }}
-        >
-          <Edit fontSize="small" />
         </IconButton>
 
         {/* Delete Button */}
