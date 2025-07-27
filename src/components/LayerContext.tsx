@@ -30,6 +30,7 @@ interface LayerContextType {
   getLayerById: (layerId: string) => Layer | undefined;
   getActiveLayer: () => Layer | undefined;
   getLayerElements: (layerId: string) => { nodes: string[], lines: string[] };
+  reorderLayers: (fromIndex: number, toIndex: number) => void;
 }
 
 const LayerContext = createContext<LayerContextType | undefined>(undefined);
@@ -73,7 +74,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       lines: [],
       createdAt: new Date(),
     };
-    setLayers(prev => [...prev, newLayer]);
+    setLayers(prev => [newLayer, ...prev]); // Add new layer at the top
     setActiveLayerId(newLayer.id);
   };
 
@@ -228,6 +229,15 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
     return { nodes: layer.nodes, lines: layer.lines };
   };
 
+  const reorderLayers = (fromIndex: number, toIndex: number) => {
+    setLayers(prev => {
+      const newLayers = [...prev];
+      const [movedLayer] = newLayers.splice(fromIndex, 1);
+      newLayers.splice(toIndex, 0, movedLayer);
+      return newLayers;
+    });
+  };
+
   return (
     <LayerContext.Provider value={{
       layers,
@@ -247,6 +257,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       getLayerById,
       getActiveLayer,
       getLayerElements,
+      reorderLayers,
     }}>
       {children}
     </LayerContext.Provider>

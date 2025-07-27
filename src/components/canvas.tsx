@@ -1013,7 +1013,7 @@ const Canvas = () => {
 
   // Filter nodes and lines based on layer visibility
   const visibleNodes = useMemo(() => {
-    return nodes.filter(node => {
+    const filteredNodes = nodes.filter(node => {
       // Find which layer this node belongs to
       const nodeLayer = layers.find(layer => layer.nodes.includes(node.id));
       // If no layer is assigned, show on default layer
@@ -1023,10 +1023,23 @@ const Canvas = () => {
       }
       return nodeLayer.visible;
     });
+
+    // Sort nodes by layer order for proper z-index
+    // Layers at the top of the list should have higher z-index (rendered later/on top)
+    return filteredNodes.sort((a, b) => {
+      const layerA = layers.find(layer => layer.nodes.includes(a.id));
+      const layerB = layers.find(layer => layer.nodes.includes(b.id));
+      
+      // If no layer assigned, treat as default layer
+      const indexA = layerA ? layers.findIndex(layer => layer.id === layerA.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      const indexB = layerB ? layers.findIndex(layer => layer.id === layerB.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      
+      return indexB - indexA; // Higher index (bottom of list) renders first, lower index (top of list) renders last (on top)
+    });
   }, [nodes, layers]);
 
   const visibleLines = useMemo(() => {
-    return lines.filter(line => {
+    const filteredLines = lines.filter(line => {
       // Find which layer this line belongs to
       const lineLayer = layers.find(layer => layer.lines.includes(line.id));
       // If no layer is assigned, show on default layer
@@ -1035,6 +1048,19 @@ const Canvas = () => {
         return defaultLayer?.visible ?? true;
       }
       return lineLayer.visible;
+    });
+
+    // Sort lines by layer order for proper z-index
+    // Lines from layers at the top of the list should have higher z-index (rendered later/on top)
+    return filteredLines.sort((a, b) => {
+      const layerA = layers.find(layer => layer.lines.includes(a.id));
+      const layerB = layers.find(layer => layer.lines.includes(b.id));
+      
+      // If no layer assigned, treat as default layer
+      const indexA = layerA ? layers.findIndex(layer => layer.id === layerA.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      const indexB = layerB ? layers.findIndex(layer => layer.id === layerB.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      
+      return indexB - indexA; // Higher index (bottom of list) renders first, lower index (top of list) renders last (on top)
     });
   }, [lines, layers]);
 

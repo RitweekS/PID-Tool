@@ -14,6 +14,7 @@ import { useLineContext } from '../components/LineContext'
 import { useLayerContext } from '../components/LayerContext'
 import { useNodeContext } from '../components/NodeContext'
 import LayerItem from '../components/LayerItem'
+import DraggableLayerList from '../components/DraggableLayerList'
 import { Add, CallMerge } from '@mui/icons-material'
 
 const LeftDrawer = () => {
@@ -29,7 +30,8 @@ const LeftDrawer = () => {
     toggleLayerVisibility, 
     toggleLayerLock, 
     setLayerOpacity,
-    setActiveLayer 
+    setActiveLayer,
+    reorderLayers
   } = useLayerContext()
   
   // Merge functionality state
@@ -617,37 +619,19 @@ const LeftDrawer = () => {
             </Box>
 
             {/* Layers List */}
-            <Box
-                sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    width: "100%",
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    padding: "8px",
-                    backgroundColor: "#f5f5f5",
-                    borderRadius: "8px",
-                    border: "1px solid #e0e0e0",
-                }}
-            >
-                {layers.map((layer) => (
-                    <LayerItem
-                        key={layer.id}
-                        layer={layer}
-                        isActive={activeLayerId === layer.id}
-                        isSelected={selectedLayers.includes(layer.id)}
-                        totalLayers={layers.length}
-                        onToggleVisibility={() => toggleLayerVisibility(layer.id)}
-                        onToggleLock={() => toggleLayerLock(layer.id)}
-                        onOpacityChange={(opacity) => setLayerOpacity(layer.id, opacity)}
-                        onDelete={() => handleDeleteLayer(layer.id)}
-                        onRename={(newName) => renameLayer(layer.id, newName)}
-                        onSelect={() => setActiveLayer(layer.id)}
-                        onToggleSelection={() => handleToggleLayerSelection(layer.id)}
-                    />
-                ))}
-            </Box>
+            <DraggableLayerList
+                  layers={layers}
+                  activeLayerId={activeLayerId}
+                  selectedLayers={selectedLayers}
+                  onToggleVisibility={toggleLayerVisibility}
+                  onToggleLock={toggleLayerLock}
+                  onOpacityChange={setLayerOpacity}
+                  onDelete={handleDeleteLayer}
+                  onRename={renameLayer}
+                  onSelect={setActiveLayer}
+                  onToggleSelection={handleToggleLayerSelection}
+                  onReorderLayers={reorderLayers}
+              />
         </Box>
     </Box>
   )
