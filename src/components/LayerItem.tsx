@@ -7,7 +7,7 @@ import { useLineContext } from './LineContext';
 import { useLayerContext } from './LayerContext';
 import { useCanvasContext } from './CanvasContext';
 import { exportLayerAsJSON, importLayerFromJSON } from '../utils/layerUtils';
-import { exportLayerAsPNG, exportLayerAsSVG, importImageToLayer } from '../utils/imageUtils';
+import { exportLayerAsPNG, importImageToLayer } from '../utils/imageUtils';
 
 interface LayerItemProps {
   layer: Layer;
@@ -185,22 +185,11 @@ const LayerItem: React.FC<LayerItemProps> = ({
     handleExportMenuClose();
   };
 
-  // Export layer as SVG
-  const handleExportSVG = async () => {
-    try {
-      await exportLayerAsSVG(layer, nodes, lineData, stageRef);
-    } catch (error) {
-      console.error('Error exporting layer as SVG:', error);
-      alert('Failed to export layer as SVG.');
-    }
-    handleExportMenuClose();
-  };
-
   // Import image to layer
   const handleImportImage = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
+    input.accept = 'image/png,image/jpeg,image/jpg,image/gif,image/webp,image/bmp';
     input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -604,31 +593,6 @@ const LayerItem: React.FC<LayerItemProps> = ({
         </ListItemIcon>
         <ListItemText 
           primary="Export as PNG" 
-          primaryTypographyProps={{ 
-            fontSize: '12px',
-            fontWeight: 500 
-          }}
-        />
-      </MenuItem>
-      <MenuItem onClick={handleExportSVG}>
-        <ListItemIcon>
-          <Box sx={{ 
-            width: '16px', 
-            height: '16px', 
-            backgroundColor: '#ff9800', 
-            borderRadius: '2px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '8px',
-            color: 'white',
-            fontWeight: 'bold'
-          }}>
-            S
-          </Box>
-        </ListItemIcon>
-        <ListItemText 
-          primary="Export as SVG" 
           primaryTypographyProps={{ 
             fontSize: '12px',
             fontWeight: 500 

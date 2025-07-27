@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 import {
   SnapPoint,
   Connection,
@@ -51,13 +51,19 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [nodeUpdateTrigger, setNodeUpdateTrigger] = useState(0);
+  const nodesRef = useRef<Node[]>([]);
+
+  // Keep nodesRef in sync with nodes state
+  React.useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   // Update connections when nodes change position/transform
   React.useEffect(() => {
     if (nodeUpdateTrigger > 0) {
-      setConnections(currentConnections => updateConnectionPaths(currentConnections, nodes));
+      setConnections(currentConnections => updateConnectionPaths(currentConnections, nodesRef.current));
     }
-  }, [nodeUpdateTrigger, nodes]);
+  }, [nodeUpdateTrigger]);
 
   const addNode = (node: Node) => {
     setNodes(prev => [...prev, node]);
