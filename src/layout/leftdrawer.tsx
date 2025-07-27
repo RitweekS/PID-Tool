@@ -27,6 +27,7 @@ const LeftDrawer = () => {
     renameLayer, 
     toggleLayerVisibility, 
     toggleLayerLock, 
+    setLayerOpacity,
     setActiveLayer 
   } = useLayerContext()
   
@@ -660,6 +661,7 @@ const LeftDrawer = () => {
                         totalLayers={layers.length}
                         onToggleVisibility={() => toggleLayerVisibility(layer.id)}
                         onToggleLock={() => toggleLayerLock(layer.id)}
+                        onOpacityChange={(opacity) => setLayerOpacity(layer.id, opacity)}
                         onDelete={() => handleDeleteLayer(layer.id)}
                         onRename={(newName) => renameLayer(layer.id, newName)}
                         onSelect={() => setActiveLayer(layer.id)}

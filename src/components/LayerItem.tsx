@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, IconButton, TextField, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
-import { Visibility, VisibilityOff, Lock, LockOpen, Delete, MoreVert, FileDownload, FileUpload } from '@mui/icons-material';
+import { Box, IconButton, TextField, Menu, MenuItem, ListItemIcon, ListItemText, Slider, Typography } from '@mui/material';
+import { Visibility, VisibilityOff, Lock, LockOpen, Delete, MoreVert, FileDownload, FileUpload, Opacity } from '@mui/icons-material';
 import { Layer } from './LayerContext';
 import { useNodeContext } from './NodeContext';
 import { useLineContext } from './LineContext';
@@ -16,6 +16,7 @@ interface LayerItemProps {
   totalLayers: number; // Add new prop for total number of layers
   onToggleVisibility: () => void;
   onToggleLock: () => void;
+  onOpacityChange: (opacity: number) => void;
   onDelete: () => void;
   onRename: (newName: string) => void;
   onSelect: () => void;
@@ -29,6 +30,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
   totalLayers,
   onToggleVisibility,
   onToggleLock,
+  onOpacityChange,
   onDelete,
   onRename,
   onSelect,
@@ -318,9 +320,40 @@ const LayerItem: React.FC<LayerItemProps> = ({
                 fontSize: '10px',
                 color: '#666',
                 marginTop: '1px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              {layer.nodes.length + layer.lines.length} elements
+              <span>{layer.nodes.length + layer.lines.length} elements</span>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: '60px' }}>
+                <Opacity sx={{ fontSize: '10px', color: '#999' }} />
+                <Slider
+                  value={layer.opacity * 100}
+                  onChange={(_, value) => onOpacityChange((value as number) / 100)}
+                  min={0}
+                  max={100}
+                  size="small"
+                  sx={{
+                    width: '40px',
+                    height: '4px',
+                    '& .MuiSlider-thumb': {
+                      width: '8px',
+                      height: '8px',
+                    },
+                    '& .MuiSlider-track': {
+                      height: '2px',
+                    },
+                    '& .MuiSlider-rail': {
+                      height: '2px',
+                    },
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <Typography sx={{ fontSize: '8px', color: '#999', minWidth: '20px' }}>
+                  {Math.round(layer.opacity * 100)}%
+                </Typography>
+              </Box>
             </Box>
           </Box>
         )}
@@ -401,6 +434,26 @@ const LayerItem: React.FC<LayerItemProps> = ({
         },
       }}
     >
+      <MenuItem>
+        <ListItemIcon>
+          <Opacity sx={{ fontSize: "16px", color: '#757575' }} />
+        </ListItemIcon>
+        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Typography sx={{ fontSize: '13px', fontWeight: 500, minWidth: '50px' }}>Opacity</Typography>
+          <Slider
+            value={layer.opacity * 100}
+            onChange={(_, value) => onOpacityChange((value as number) / 100)}
+            min={0}
+            max={100}
+            size="small"
+            sx={{ flex: 1, mx: 1 }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <Typography sx={{ fontSize: '11px', color: '#666', minWidth: '30px' }}>
+            {Math.round(layer.opacity * 100)}%
+          </Typography>
+        </Box>
+      </MenuItem>
       <MenuItem onClick={handleExportMenuOpen}>
         <ListItemIcon>
           <FileDownload sx={{ fontSize: "16px", color: '#2196f3' }} />

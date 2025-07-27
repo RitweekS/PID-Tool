@@ -1045,6 +1045,10 @@ const Canvas = () => {
       const isHovered = pipeHover === line.id;
       const controlPoints = isSelected ? getPipeControlPoints(line.points) : [];
       
+      // Get line layer opacity
+      const lineLayer = layers.find(layer => layer.lines.includes(line.id));
+      const lineOpacity = lineLayer?.opacity ?? 1;
+      
       return (
         <React.Fragment key={line.id}>
           <Line
@@ -1052,6 +1056,7 @@ const Canvas = () => {
             points={line.points}
             stroke={isSelected ? '#FF6B35' : isHovered ? '#2196F3' : line.stroke}
             strokeWidth={isSelected ? line.strokeWidth + 2 : isHovered ? line.strokeWidth + 1 : line.strokeWidth}
+            opacity={lineOpacity}
             dash={line.dashPattern}
             lineCap="round"
             lineJoin="round"
@@ -1084,12 +1089,16 @@ const Canvas = () => {
               }
             }}
           />
-          {line.type === 'single-arrow' && renderArrow(line.points, false, line.stroke)}
+          {line.type === 'single-arrow' && (
+            <g opacity={lineOpacity}>
+              {renderArrow(line.points, false, line.stroke)}
+            </g>
+          )}
           {line.type === 'double-arrow' && (
-            <>
+            <g opacity={lineOpacity}>
               {renderArrow(line.points, false, line.stroke)}
               {renderArrow(line.points, true, line.stroke)}
-            </>
+            </g>
           )}
           {/* Render end point indicators for selected line */}
           {isSelected && controlPoints.map((point, index) => {
@@ -1228,9 +1237,10 @@ const Canvas = () => {
           )}
           
           {visibleNodes.map((node) => {
-            // Check if the node's layer is locked
+            // Check if the node's layer is locked and get opacity
             const nodeLayer = layers.find(layer => layer.nodes.includes(node.id));
             const isNodeLayerLocked = nodeLayer?.locked ?? false;
+            const nodeOpacity = nodeLayer?.opacity ?? 1;
             
             return (
               <CanvasNode
@@ -1247,6 +1257,7 @@ const Canvas = () => {
                 onSelect={() => {}}
                 onTransform={updateNodeTransform}
                 draggable={!isNodeLayerLocked}
+                opacity={nodeOpacity}
               />
             );
           })}

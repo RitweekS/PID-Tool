@@ -98,17 +98,33 @@ const exportLayerAsImage = async (
       }
     });
 
-    // Always hide grid elements
-    const allStageLines = stage.find('Line');
-    const gridElements = allStageLines.filter((line: any) => {
-      const stroke = line.stroke();
-      const key = line.attrs.key;
-      return (stroke === '#ddd' || stroke === 'ddd') && 
-             (key?.startsWith('v-') || key?.startsWith('h-'));
+    // Hide all grid elements - improved detection
+    const allStageChildren = stage.getChildren()[0].getChildren(); // Get layer children
+    const gridElements: any[] = [];
+    
+    allStageChildren.forEach((child: any) => {
+      // Check for grid lines by various properties
+      if (child.getClassName() === 'Line') {
+        const stroke = child.stroke();
+        const strokeWidth = child.strokeWidth();
+        const key = child.attrs.key || child.id();
+        const name = child.name();
+        
+        // Multiple ways to identify grid lines
+        const isGridLine = 
+          (stroke === '#ddd' || stroke === 'ddd' || stroke === '#e0e0e0') ||
+          (key && (key.startsWith('v-') || key.startsWith('h-') || key.includes('grid'))) ||
+          (name && (name.includes('grid') || name.includes('Grid'))) ||
+          (strokeWidth === 1 && (stroke === '#ddd' || stroke === '#e0e0e0'));
+          
+        if (isGridLine) {
+          gridElements.push(child);
+        }
+      }
     });
     
     gridElements.forEach((gridLine: any) => {
-      const key = gridLine.attrs.key || `grid-${Math.random()}`;
+      const key = gridLine.attrs.key || gridLine.id() || `grid-${Math.random()}`;
       originalVisibility.set(key, gridLine.visible());
       gridLine.visible(false);
     });
@@ -134,13 +150,32 @@ const exportLayerAsImage = async (
         dataURL = stage.toDataURL(konvaExportOptions);
       }
     } finally {
-      // Restore visibility
+      // Restore visibility for non-grid elements
       originalVisibility.forEach((visible, elementId) => {
+        // Skip restoring grid elements - keep them hidden during export
+        if (elementId.includes('grid') || elementId.startsWith('v-') || elementId.startsWith('h-')) {
+          return;
+        }
+        
         const element = stage.find(`#${elementId}`)[0];
         if (element) {
           element.visible(visible);
         }
       });
+      
+      // Restore grid elements after a short delay to ensure export is complete
+      setTimeout(() => {
+        originalVisibility.forEach((visible, elementId) => {
+          if (elementId.includes('grid') || elementId.startsWith('v-') || elementId.startsWith('h-')) {
+            const element = stage.find(`#${elementId}`)[0];
+            if (element) {
+              element.visible(visible);
+            }
+          }
+        });
+        stage.batchDraw();
+      }, 100);
+      
       stage.batchDraw();
     }
 
@@ -240,6 +275,9 @@ export const importImageToLayer = async (
       snapPoints: [],
       width: imageWidth,
       height: imageHeight,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
       // Add custom properties for image nodes
       isImageNode: true,
       originalFileName: file.name,

@@ -16,6 +16,7 @@ interface CanvasNodeProps {
   onSelect?: () => void;
   onTransform?: (id: string, attrs: any) => void;
   draggable?: boolean;
+  opacity?: number;
 }
 
 
@@ -31,7 +32,8 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
   isSelected,
   onSelect,
   onTransform,
-  draggable = true
+  draggable = true,
+  opacity = 1
 }) => {
   const [image, setImage] = React.useState<HTMLImageElement | null>(null);
   const groupRef = React.useRef<any>(null);
@@ -193,6 +195,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
         rotation={node.rotation || 0}
         scaleX={node.scaleX || 1}
         scaleY={node.scaleY || 1}
+        opacity={opacity}
         draggable={draggable}
         onDragEnd={handleDragEnd}
         onDragMove={handleDragMove}
@@ -235,7 +238,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
           ]}
           rotateEnabled={true}
           resizeEnabled={true}
-          keepRatio={false}
+          keepRatio={node.isImageNode ? true : false}
           anchorSize={8}
           anchorStroke="#4285f4"
           anchorFill="white"
@@ -249,7 +252,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
               return oldBox;
             }
             // Limit maximum resize
-            if (newBox.width > 500 || newBox.height > 500) {
+            if (newBox.width > 800 || newBox.height > 800) {
               return oldBox;
             }
             return newBox;
@@ -290,6 +293,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
             fill={snapPointFill}
             stroke={snapPointStroke}
             strokeWidth={snapPointStrokeWidth}
+            opacity={opacity}
             onMouseDown={handleSnapPointMouseDown(snapPoint.id)}
             onContextMenu={handleSnapPointRightClick(snapPoint.id)}
             listening={true}
