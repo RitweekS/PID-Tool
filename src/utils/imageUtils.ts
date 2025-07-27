@@ -98,24 +98,20 @@ const exportLayerAsImage = async (
       }
     });
 
-    // Hide all grid elements - improved detection
-    const allStageChildren = stage.getChildren()[0].getChildren(); // Get layer children
+    // Hide all grid elements by setting their opacity to 0 instead of visible(false)
+    // This preserves the elements but makes them invisible
     const gridElements: any[] = [];
+    const allStageChildren = stage.getChildren()[0].getChildren();
     
     allStageChildren.forEach((child: any) => {
-      // Check for grid lines by various properties
       if (child.getClassName() === 'Line') {
         const stroke = child.stroke();
-        const strokeWidth = child.strokeWidth();
         const key = child.attrs.key || child.id();
-        const name = child.name();
         
-        // Multiple ways to identify grid lines
+        // Identify grid lines by their key pattern (v- or h-) or stroke color
         const isGridLine = 
-          (stroke === '#ddd' || stroke === 'ddd' || stroke === '#e0e0e0') ||
-          (key && (key.startsWith('v-') || key.startsWith('h-') || key.includes('grid'))) ||
-          (name && (name.includes('grid') || name.includes('Grid'))) ||
-          (strokeWidth === 1 && (stroke === '#ddd' || stroke === '#e0e0e0'));
+          (key && (key.startsWith('v-') || key.startsWith('h-'))) ||
+          (stroke === '#ddd' || stroke === 'ddd' || stroke === '#e0e0e0');
           
         if (isGridLine) {
           gridElements.push(child);
@@ -123,10 +119,11 @@ const exportLayerAsImage = async (
       }
     });
     
+    // Store original opacity and set to 0 for grid elements
     gridElements.forEach((gridLine: any) => {
-      const key = gridLine.attrs.key || gridLine.id() || `grid-${Math.random()}`;
-      originalVisibility.set(key, gridLine.visible());
-      gridLine.visible(false);
+      const key = gridLine.attrs.key || gridLine.id();
+      originalVisibility.set(`grid-${key}`, gridLine.opacity());
+      gridLine.opacity(0);
     });
 
     // Create export options
@@ -152,29 +149,22 @@ const exportLayerAsImage = async (
     } finally {
       // Restore visibility for non-grid elements
       originalVisibility.forEach((visible, elementId) => {
-        // Skip restoring grid elements - keep them hidden during export
-        if (elementId.includes('grid') || elementId.startsWith('v-') || elementId.startsWith('h-')) {
-          return;
-        }
-        
-        const element = stage.find(`#${elementId}`)[0];
-        if (element) {
-          element.visible(visible);
+        if (!elementId.startsWith('grid-')) {
+          const element = stage.find(`#${elementId}`)[0];
+          if (element) {
+            element.visible(visible);
+          }
         }
       });
       
-      // Restore grid elements after a short delay to ensure export is complete
-      setTimeout(() => {
-        originalVisibility.forEach((visible, elementId) => {
-          if (elementId.includes('grid') || elementId.startsWith('v-') || elementId.startsWith('h-')) {
-            const element = stage.find(`#${elementId}`)[0];
-            if (element) {
-              element.visible(visible);
-            }
-          }
-        });
-        stage.batchDraw();
-      }, 100);
+      // Restore grid element opacity
+      gridElements.forEach((gridLine: any) => {
+        const key = gridLine.attrs.key || gridLine.id();
+        const originalOpacity = originalVisibility.get(`grid-${key}`);
+        if (originalOpacity !== undefined) {
+          gridLine.opacity(originalOpacity);
+        }
+      });
       
       stage.batchDraw();
     }
