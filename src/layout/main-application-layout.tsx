@@ -8,6 +8,7 @@ import Footer from './footer'
 import { NodeProvider } from '../components/NodeContext'
 import { LineProvider } from '../components/LineContext'
 import { LayerProvider } from '../components/LayerContext'
+import { CanvasProvider } from '../components/CanvasContext'
 import { useAuthContext } from '../components/AuthProvider'
 import { usePathname } from 'next/navigation'
 
@@ -20,6 +21,7 @@ const MainApplicationLayout = ({ children }: { children: React.ReactNode }) => {
     <NodeProvider>
       <LineProvider>
         <LayerProvider>
+          <CanvasProvider>
           {!isAuthenticated || isLoginPage ? (
             <>{children}</>
           ) : (
@@ -49,6 +51,7 @@ const MainApplicationLayout = ({ children }: { children: React.ReactNode }) => {
                 <Footer />
             </Box>
           )}
+          </CanvasProvider>
         </LayerProvider>
       </LineProvider>
     </NodeProvider>

@@ -2,6 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Box, IconButton, TextField, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
 import { Visibility, VisibilityOff, Lock, LockOpen, Delete, MoreVert, FileDownload, FileUpload } from '@mui/icons-material';
 import { Layer } from './LayerContext';
+import { useNodeContext } from './NodeContext';
+import { useLineContext } from './LineContext';
+import { useLayerContext } from './LayerContext';
+import { useCanvasContext } from './CanvasContext';
+import { exportLayerAsJSON, importLayerFromJSON } from '../utils/layerUtils';
+import { exportLayerAsPNG, exportLayerAsSVG, importImageToLayer } from '../utils/imageUtils';
 
 interface LayerItemProps {
   layer: Layer;
@@ -32,10 +38,17 @@ const LayerItem: React.FC<LayerItemProps> = ({
   const [editName, setEditName] = useState(layer.name);
   const inputRef = useRef<HTMLInputElement>(null);
   
+  // Access context data for export/import
+  const { nodes, addNode, connections, addConnection, setConnections } = useNodeContext();
+  const { lines: lineData, addLine } = useLineContext();
+  const { addNodeToLayer, addLineToLayer } = useLayerContext();
+  const { stageRef } = useCanvasContext();
+  
   // Menu states
   const [moreMenuAnchor, setMoreMenuAnchor] = useState<null | HTMLElement>(null);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
   const [importMenuAnchor, setImportMenuAnchor] = useState<null | HTMLElement>(null);
+  
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -99,6 +112,112 @@ const LayerItem: React.FC<LayerItemProps> = ({
   const handleImportMenuClose = () => {
     setImportMenuAnchor(null);
     setMoreMenuAnchor(null);
+  };
+
+  // Export layer as JSON
+  const handleExportJSON = () => {
+    try {
+      const layerData = exportLayerAsJSON(layer, nodes, lineData, connections);
+      const blob = new Blob([JSON.stringify(layerData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${layer.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_layer.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting layer as JSON:', error);
+      alert('Failed to export layer as JSON. Please try again.');
+    }
+    handleExportMenuClose();
+  };
+
+  // Import layer from JSON
+  const handleImportJSON = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      try {
+        const text = await file.text();
+        const layerData = JSON.parse(text);
+        const result = importLayerFromJSON(
+          layerData, 
+          layer.id, 
+          addNode, 
+          addLine, 
+          addConnection,
+          setConnections,
+          addNodeToLayer, 
+          addLineToLayer,
+          () => nodes
+        );
+        
+        if (result.success) {
+          alert(`Successfully imported ${result.importedNodes} nodes and ${result.importedLines} lines to layer "${layer.name}".`);
+        } else {
+          alert(`Import failed: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Error importing layer from JSON:', error);
+        alert('Failed to import layer from JSON. Please check the file format and try again.');
+      }
+    };
+    input.click();
+    handleImportMenuClose();
+  };
+
+  // Export layer as PNG
+  const handleExportPNG = async () => {
+    try {
+      await exportLayerAsPNG(layer, nodes, lineData, stageRef);
+    } catch (error) {
+      console.error('Error exporting layer as PNG:', error);
+      alert('Failed to export layer as PNG.');
+    }
+    handleExportMenuClose();
+  };
+
+  // Export layer as SVG
+  const handleExportSVG = async () => {
+    try {
+      await exportLayerAsSVG(layer, nodes, lineData, stageRef);
+    } catch (error) {
+      console.error('Error exporting layer as SVG:', error);
+      alert('Failed to export layer as SVG.');
+    }
+    handleExportMenuClose();
+  };
+
+  // Import image to layer
+  const handleImportImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      try {
+        const result = await importImageToLayer(file, layer.id, addNode, addNodeToLayer, stageRef);
+        
+        if (result.success) {
+          alert(`Successfully imported image "${file.name}" to layer "${layer.name}".`);
+        } else {
+          alert(`Import failed: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Error importing image:', error);
+        alert('Failed to import image. Please try again.');
+      }
+    };
+    input.click();
+    handleImportMenuClose();
   };
 
   return (
@@ -388,7 +507,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
         },
       }}
     >
-      <MenuItem onClick={handleExportMenuClose}>
+      <MenuItem onClick={handleExportJSON}>
         <ListItemIcon>
           <Box sx={{ 
             width: '16px', 
@@ -413,7 +532,32 @@ const LayerItem: React.FC<LayerItemProps> = ({
           }}
         />
       </MenuItem>
-      <MenuItem onClick={handleExportMenuClose}>
+      <MenuItem onClick={handleExportPNG}>
+        <ListItemIcon>
+          <Box sx={{ 
+            width: '16px', 
+            height: '16px', 
+            backgroundColor: '#2196f3', 
+            borderRadius: '2px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '8px',
+            color: 'white',
+            fontWeight: 'bold'
+          }}>
+            P
+          </Box>
+        </ListItemIcon>
+        <ListItemText 
+          primary="Export as PNG" 
+          primaryTypographyProps={{ 
+            fontSize: '12px',
+            fontWeight: 500 
+          }}
+        />
+      </MenuItem>
+      <MenuItem onClick={handleExportSVG}>
         <ListItemIcon>
           <Box sx={{ 
             width: '16px', 
@@ -427,11 +571,11 @@ const LayerItem: React.FC<LayerItemProps> = ({
             color: 'white',
             fontWeight: 'bold'
           }}>
-            I
+            S
           </Box>
         </ListItemIcon>
         <ListItemText 
-          primary="Export as Image" 
+          primary="Export as SVG" 
           primaryTypographyProps={{ 
             fontSize: '12px',
             fontWeight: 500 
@@ -471,7 +615,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
         },
       }}
     >
-      <MenuItem onClick={handleImportMenuClose}>
+      <MenuItem onClick={handleImportJSON}>
         <ListItemIcon>
           <Box sx={{ 
             width: '16px', 
@@ -496,7 +640,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
           }}
         />
       </MenuItem>
-      <MenuItem onClick={handleImportMenuClose}>
+      <MenuItem onClick={handleImportImage}>
         <ListItemIcon>
           <Box sx={{ 
             width: '16px', 
@@ -522,6 +666,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
         />
       </MenuItem>
     </Menu>
+
   </>
   );
 };

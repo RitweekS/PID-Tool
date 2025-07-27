@@ -30,6 +30,10 @@ export interface Node {
   rotation?: number;
   scaleX?: number;
   scaleY?: number;
+  // Image node specific properties
+  isImageNode?: boolean;
+  originalFileName?: string;
+  fileType?: string;
 }
 
 /**

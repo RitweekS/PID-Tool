@@ -50,6 +50,14 @@ interface NodeProviderProps {
 export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [nodeUpdateTrigger, setNodeUpdateTrigger] = useState(0);
+
+  // Update connections when nodes change position/transform
+  React.useEffect(() => {
+    if (nodeUpdateTrigger > 0) {
+      setConnections(currentConnections => updateConnectionPaths(currentConnections, nodes));
+    }
+  }, [nodeUpdateTrigger, nodes]);
 
   const addNode = (node: Node) => {
     setNodes(prev => [...prev, node]);
@@ -70,14 +78,8 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   };
 
   const updateNodePosition = (id: string, x: number, y: number) => {
-    setNodes(prev => {
-      const updatedNodes = updateNodePositionInNodes(prev, id, x, y);
-      
-      // Update connections when nodes move
-      setConnections(currentConnections => updateConnectionPaths(currentConnections, updatedNodes));
-      
-      return updatedNodes;
-    });
+    setNodes(prev => updateNodePositionInNodes(prev, id, x, y));
+    setNodeUpdateTrigger(prev => prev + 1);
   };
 
   const updateNodeSize = (id: string, width: number, height: number) => {
@@ -111,8 +113,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
         return node;
       });
       
-      // Update connections when nodes transform
-      setConnections(currentConnections => updateConnectionPaths(currentConnections, finalNodes));
+      setNodeUpdateTrigger(prev => prev + 1);
       
       return finalNodes;
     });

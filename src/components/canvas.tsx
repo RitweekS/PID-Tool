@@ -4,6 +4,7 @@ import { Stage, Layer, Line, Circle, Path } from 'react-konva';
 import { useNodeContext } from './NodeContext';
 import { useLineContext } from './LineContext';
 import { useLayerContext } from './LayerContext';
+import { useCanvasContext } from './CanvasContext';
 import CanvasNode from './CanvasNode';
 import { getComponentBounds, isPositionWithinBounds, getSnapPointWorldPosition, getSnapPointsNear, updatePipeLines } from '../utils';
 import { getDistanceToLine, findNearestLineSegment, insertPointInPipe, movePipePoint, getPipeControlPoints, movePipe, isEndPoint } from '../utils/pipeUtils';
@@ -68,6 +69,7 @@ const Canvas = () => {
   } = useNodeContext();
   const { lines, addLine, updateLine, deleteLine, selectedLineType, isDrawing, setIsDrawing, selectedLineId, setSelectedLineId, movingLineId, setMovingLineId } = useLineContext();
   const { layers, activeLayerId, getActiveLayer, addNodeToLayer, addLineToLayer } = useLayerContext();
+  const { setStageRef } = useCanvasContext();
   const stageRef = useRef<any>(null);
   const [drawingPoints, setDrawingPoints] = useState<number[]>([]);
   const [startSnapPoint, setStartSnapPoint] = useState<string | null>(null);
@@ -118,6 +120,13 @@ const Canvas = () => {
   
   const width = typeof window !== "undefined" ? window.innerWidth - 490 : 800;
   const height = typeof window !== "undefined" ? window.innerHeight : 600;
+
+  // Register stageRef with context
+  React.useEffect(() => {
+    if (stageRef.current) {
+      setStageRef(stageRef);
+    }
+  }, [setStageRef]);
 
   // State for grid updates
   const [gridKey, setGridKey] = useState(0);
