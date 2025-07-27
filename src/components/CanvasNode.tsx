@@ -15,6 +15,7 @@ interface CanvasNodeProps {
   isSelected?: boolean;
   onSelect?: () => void;
   onTransform?: (id: string, attrs: any) => void;
+  draggable?: boolean;
 }
 
 
@@ -29,7 +30,8 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
   connectingSnapPointId, 
   isSelected,
   onSelect,
-  onTransform
+  onTransform,
+  draggable = true
 }) => {
   const [image, setImage] = React.useState<HTMLImageElement | null>(null);
   const groupRef = React.useRef<any>(null);
@@ -191,7 +193,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
         rotation={node.rotation || 0}
         scaleX={node.scaleX || 1}
         scaleY={node.scaleY || 1}
-        draggable
+        draggable={draggable}
         onDragEnd={handleDragEnd}
         onDragMove={handleDragMove}
         onClick={handleClick}
