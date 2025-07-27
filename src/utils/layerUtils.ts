@@ -105,7 +105,8 @@ export const importLayerFromJSON = (
   setConnections: React.Dispatch<React.SetStateAction<Connection[]>>,
   addNodeToLayer: (layerId: string, nodeId: string) => void,
   addLineToLayer: (layerId: string, lineId: string) => void,
-  getAllNodes: () => Node[]
+  getAllNodes: () => Node[],
+  triggerConnectionUpdate?: () => void
 ): ImportResult => {
   try {
     // Validate the JSON structure
@@ -240,16 +241,20 @@ export const importLayerFromJSON = (
 
     // Fourth pass: Force update of connection paths after import
     // This ensures the connections are recalculated based on actual node positions
-    setTimeout(() => {
-      const currentNodes = getAllNodes();
-      console.log('Force updating connections with nodes:', currentNodes.length);
-      
-      setConnections(currentConnections => {
-        const updatedConnections = updateConnectionPaths(currentConnections, currentNodes);
-        console.log('Updated connections:', updatedConnections);
-        return updatedConnections;
-      });
-    }, 150); // Small delay to ensure nodes are fully rendered
+    if (triggerConnectionUpdate) {
+      triggerConnectionUpdate();
+    } else {
+      setTimeout(() => {
+        const currentNodes = getAllNodes();
+        console.log('Force updating connections with nodes:', currentNodes.length);
+        
+        setConnections(currentConnections => {
+          const updatedConnections = updateConnectionPaths(currentConnections, currentNodes);
+          console.log('Updated connections:', updatedConnections);
+          return updatedConnections;
+        });
+      }, 150); // Small delay to ensure nodes are fully rendered
+    }
 
     return {
       success: true,

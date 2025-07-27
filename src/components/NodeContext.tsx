@@ -31,6 +31,7 @@ interface NodeContextType {
   addConnection: (fromSnapId: string, toSnapId: string, points: number[]) => void;
   removeConnection: (connectionId: string) => void;
   setConnections: React.Dispatch<React.SetStateAction<Connection[]>>;
+  triggerConnectionUpdate: () => void;
 }
 
 const NodeContext = createContext<NodeContextType | undefined>(undefined);
@@ -146,6 +147,10 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     setConnections(prev => removeConnectionFromConnections(prev, connectionId));
   };
 
+  const triggerConnectionUpdate = () => {
+    setNodeUpdateTrigger(prev => prev + 1);
+  };
+
   return (
     <NodeContext.Provider value={{
       nodes,
@@ -161,6 +166,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
       addConnection,
       removeConnection,
       setConnections,
+      triggerConnectionUpdate,
     }}>
       {children}
     </NodeContext.Provider>

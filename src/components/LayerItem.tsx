@@ -41,7 +41,7 @@ const LayerItem: React.FC<LayerItemProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Access context data for export/import
-  const { nodes, addNode, connections, addConnection, setConnections } = useNodeContext();
+  const { nodes, addNode, connections, addConnection, setConnections, triggerConnectionUpdate } = useNodeContext();
   const { lines: lineData, addLine } = useLineContext();
   const { addNodeToLayer, addLineToLayer } = useLayerContext();
   const { stageRef } = useCanvasContext();
@@ -157,7 +157,8 @@ const LayerItem: React.FC<LayerItemProps> = ({
           setConnections,
           addNodeToLayer, 
           addLineToLayer,
-          () => nodes
+          () => nodes,
+          triggerConnectionUpdate
         );
         
         if (result.success) {
