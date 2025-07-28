@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 import {
   SnapPoint,
   Connection,
@@ -31,6 +31,7 @@ interface NodeContextType {
   addConnection: (fromSnapId: string, toSnapId: string, points: number[]) => void;
   removeConnection: (connectionId: string) => void;
   setConnections: React.Dispatch<React.SetStateAction<Connection[]>>;
+  triggerConnectionUpdate: () => void;
 }
 
 const NodeContext = createContext<NodeContextType | undefined>(undefined);
@@ -50,6 +51,20 @@ interface NodeProviderProps {
 export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [nodeUpdateTrigger, setNodeUpdateTrigger] = useState(0);
+  const nodesRef = useRef<Node[]>([]);
+
+  // Keep nodesRef in sync with nodes state
+  React.useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  // Update connections when nodes change position/transform
+  React.useEffect(() => {
+    if (nodeUpdateTrigger > 0) {
+      setConnections(currentConnections => updateConnectionPaths(currentConnections, nodesRef.current));
+    }
+  }, [nodeUpdateTrigger]);
 
   const addNode = (node: Node) => {
     setNodes(prev => [...prev, node]);
@@ -70,14 +85,8 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   };
 
   const updateNodePosition = (id: string, x: number, y: number) => {
-    setNodes(prev => {
-      const updatedNodes = updateNodePositionInNodes(prev, id, x, y);
-      
-      // Update connections when nodes move
-      setConnections(currentConnections => updateConnectionPaths(currentConnections, updatedNodes));
-      
-      return updatedNodes;
-    });
+    setNodes(prev => updateNodePositionInNodes(prev, id, x, y));
+    setNodeUpdateTrigger(prev => prev + 1);
   };
 
   const updateNodeSize = (id: string, width: number, height: number) => {
@@ -111,8 +120,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
         return node;
       });
       
-      // Update connections when nodes transform
-      setConnections(currentConnections => updateConnectionPaths(currentConnections, finalNodes));
+      setNodeUpdateTrigger(prev => prev + 1);
       
       return finalNodes;
     });
@@ -139,6 +147,10 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     setConnections(prev => removeConnectionFromConnections(prev, connectionId));
   };
 
+  const triggerConnectionUpdate = () => {
+    setNodeUpdateTrigger(prev => prev + 1);
+  };
+
   return (
     <NodeContext.Provider value={{
       nodes,
@@ -154,6 +166,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
       addConnection,
       removeConnection,
       setConnections,
+      triggerConnectionUpdate,
     }}>
       {children}
     </NodeContext.Provider>

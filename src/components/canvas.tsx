@@ -4,6 +4,7 @@ import { Stage, Layer, Line, Circle, Path } from 'react-konva';
 import { useNodeContext } from './NodeContext';
 import { useLineContext } from './LineContext';
 import { useLayerContext } from './LayerContext';
+import { useCanvasContext } from './CanvasContext';
 import CanvasNode from './CanvasNode';
 import { getComponentBounds, isPositionWithinBounds, getSnapPointWorldPosition, getSnapPointsNear, updatePipeLines } from '../utils';
 import { getDistanceToLine, findNearestLineSegment, insertPointInPipe, movePipePoint, getPipeControlPoints, movePipe, isEndPoint } from '../utils/pipeUtils';
@@ -68,6 +69,7 @@ const Canvas = () => {
   } = useNodeContext();
   const { lines, addLine, updateLine, deleteLine, selectedLineType, isDrawing, setIsDrawing, selectedLineId, setSelectedLineId, movingLineId, setMovingLineId } = useLineContext();
   const { layers, activeLayerId, getActiveLayer, addNodeToLayer, addLineToLayer } = useLayerContext();
+  const { setStageRef } = useCanvasContext();
   const stageRef = useRef<any>(null);
   const [drawingPoints, setDrawingPoints] = useState<number[]>([]);
   const [startSnapPoint, setStartSnapPoint] = useState<string | null>(null);
@@ -118,6 +120,13 @@ const Canvas = () => {
   
   const width = typeof window !== "undefined" ? window.innerWidth - 490 : 800;
   const height = typeof window !== "undefined" ? window.innerHeight : 600;
+
+  // Register stageRef with context
+  React.useEffect(() => {
+    if (stageRef.current) {
+      setStageRef(stageRef);
+    }
+  }, [setStageRef]);
 
   // State for grid updates
   const [gridKey, setGridKey] = useState(0);
@@ -1004,7 +1013,7 @@ const Canvas = () => {
 
   // Filter nodes and lines based on layer visibility
   const visibleNodes = useMemo(() => {
-    return nodes.filter(node => {
+    const filteredNodes = nodes.filter(node => {
       // Find which layer this node belongs to
       const nodeLayer = layers.find(layer => layer.nodes.includes(node.id));
       // If no layer is assigned, show on default layer
@@ -1014,10 +1023,23 @@ const Canvas = () => {
       }
       return nodeLayer.visible;
     });
+
+    // Sort nodes by layer order for proper z-index
+    // Layers at the top of the list should have higher z-index (rendered later/on top)
+    return filteredNodes.sort((a, b) => {
+      const layerA = layers.find(layer => layer.nodes.includes(a.id));
+      const layerB = layers.find(layer => layer.nodes.includes(b.id));
+      
+      // If no layer assigned, treat as default layer
+      const indexA = layerA ? layers.findIndex(layer => layer.id === layerA.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      const indexB = layerB ? layers.findIndex(layer => layer.id === layerB.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      
+      return indexB - indexA; // Higher index (bottom of list) renders first, lower index (top of list) renders last (on top)
+    });
   }, [nodes, layers]);
 
   const visibleLines = useMemo(() => {
-    return lines.filter(line => {
+    const filteredLines = lines.filter(line => {
       // Find which layer this line belongs to
       const lineLayer = layers.find(layer => layer.lines.includes(line.id));
       // If no layer is assigned, show on default layer
@@ -1026,6 +1048,19 @@ const Canvas = () => {
         return defaultLayer?.visible ?? true;
       }
       return lineLayer.visible;
+    });
+
+    // Sort lines by layer order for proper z-index
+    // Lines from layers at the top of the list should have higher z-index (rendered later/on top)
+    return filteredLines.sort((a, b) => {
+      const layerA = layers.find(layer => layer.lines.includes(a.id));
+      const layerB = layers.find(layer => layer.lines.includes(b.id));
+      
+      // If no layer assigned, treat as default layer
+      const indexA = layerA ? layers.findIndex(layer => layer.id === layerA.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      const indexB = layerB ? layers.findIndex(layer => layer.id === layerB.id) : layers.findIndex(layer => layer.id === 'default-layer');
+      
+      return indexB - indexA; // Higher index (bottom of list) renders first, lower index (top of list) renders last (on top)
     });
   }, [lines, layers]);
 
@@ -1036,6 +1071,10 @@ const Canvas = () => {
       const isHovered = pipeHover === line.id;
       const controlPoints = isSelected ? getPipeControlPoints(line.points) : [];
       
+      // Get line layer opacity
+      const lineLayer = layers.find(layer => layer.lines.includes(line.id));
+      const lineOpacity = lineLayer?.opacity ?? 1;
+      
       return (
         <React.Fragment key={line.id}>
           <Line
@@ -1043,6 +1082,7 @@ const Canvas = () => {
             points={line.points}
             stroke={isSelected ? '#FF6B35' : isHovered ? '#2196F3' : line.stroke}
             strokeWidth={isSelected ? line.strokeWidth + 2 : isHovered ? line.strokeWidth + 1 : line.strokeWidth}
+            opacity={lineOpacity}
             dash={line.dashPattern}
             lineCap="round"
             lineJoin="round"
@@ -1075,12 +1115,16 @@ const Canvas = () => {
               }
             }}
           />
-          {line.type === 'single-arrow' && renderArrow(line.points, false, line.stroke)}
+          {line.type === 'single-arrow' && (
+            <g opacity={lineOpacity}>
+              {renderArrow(line.points, false, line.stroke)}
+            </g>
+          )}
           {line.type === 'double-arrow' && (
-            <>
+            <g opacity={lineOpacity}>
               {renderArrow(line.points, false, line.stroke)}
               {renderArrow(line.points, true, line.stroke)}
-            </>
+            </g>
           )}
           {/* Render end point indicators for selected line */}
           {isSelected && controlPoints.map((point, index) => {
@@ -1219,9 +1263,10 @@ const Canvas = () => {
           )}
           
           {visibleNodes.map((node) => {
-            // Check if the node's layer is locked
+            // Check if the node's layer is locked and get opacity
             const nodeLayer = layers.find(layer => layer.nodes.includes(node.id));
             const isNodeLayerLocked = nodeLayer?.locked ?? false;
+            const nodeOpacity = nodeLayer?.opacity ?? 1;
             
             return (
               <CanvasNode
@@ -1238,6 +1283,7 @@ const Canvas = () => {
                 onSelect={() => {}}
                 onTransform={updateNodeTransform}
                 draggable={!isNodeLayerLocked}
+                opacity={nodeOpacity}
               />
             );
           })}

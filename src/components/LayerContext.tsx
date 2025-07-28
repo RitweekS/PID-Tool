@@ -6,6 +6,7 @@ export interface Layer {
   name: string;
   visible: boolean;
   locked: boolean;
+  opacity: number; // 0 to 1
   nodes: string[]; // Array of node IDs that belong to this layer
   lines: string[]; // Array of line IDs that belong to this layer
   createdAt: Date;
@@ -20,6 +21,7 @@ interface LayerContextType {
   renameLayer: (layerId: string, newName: string) => void;
   toggleLayerVisibility: (layerId: string) => void;
   toggleLayerLock: (layerId: string) => void;
+  setLayerOpacity: (layerId: string, opacity: number) => void;
   setActiveLayer: (layerId: string | null) => void;
   addNodeToLayer: (layerId: string, nodeId: string) => void;
   removeNodeFromLayer: (layerId: string, nodeId: string) => void;
@@ -28,6 +30,7 @@ interface LayerContextType {
   getLayerById: (layerId: string) => Layer | undefined;
   getActiveLayer: () => Layer | undefined;
   getLayerElements: (layerId: string) => { nodes: string[], lines: string[] };
+  reorderLayers: (fromIndex: number, toIndex: number) => void;
 }
 
 const LayerContext = createContext<LayerContextType | undefined>(undefined);
@@ -51,6 +54,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       name: 'Default Layer',
       visible: true,
       locked: false,
+      opacity: 1,
       nodes: [],
       lines: [],
       createdAt: new Date(),
@@ -65,11 +69,12 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       name: layerName,
       visible: true,
       locked: false,
+      opacity: 1,
       nodes: [],
       lines: [],
       createdAt: new Date(),
     };
-    setLayers(prev => [...prev, newLayer]);
+    setLayers(prev => [newLayer, ...prev]); // Add new layer at the top
     setActiveLayerId(newLayer.id);
   };
 
@@ -127,6 +132,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       name: newLayerName,
       visible: true,
       locked: false,
+      opacity: 1,
       nodes: nodesToMerge,
       lines: linesToMerge,
       createdAt: new Date(),
@@ -162,6 +168,12 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
   const toggleLayerLock = (layerId: string) => {
     setLayers(prev => prev.map(layer => 
       layer.id === layerId ? { ...layer, locked: !layer.locked } : layer
+    ));
+  };
+
+  const setLayerOpacity = (layerId: string, opacity: number) => {
+    setLayers(prev => prev.map(layer => 
+      layer.id === layerId ? { ...layer, opacity: Math.max(0, Math.min(1, opacity)) } : layer
     ));
   };
 
@@ -217,6 +229,15 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
     return { nodes: layer.nodes, lines: layer.lines };
   };
 
+  const reorderLayers = (fromIndex: number, toIndex: number) => {
+    setLayers(prev => {
+      const newLayers = [...prev];
+      const [movedLayer] = newLayers.splice(fromIndex, 1);
+      newLayers.splice(toIndex, 0, movedLayer);
+      return newLayers;
+    });
+  };
+
   return (
     <LayerContext.Provider value={{
       layers,
@@ -227,6 +248,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       renameLayer,
       toggleLayerVisibility,
       toggleLayerLock,
+      setLayerOpacity,
       setActiveLayer,
       addNodeToLayer,
       removeNodeFromLayer,
@@ -235,6 +257,7 @@ export const LayerProvider: React.FC<LayerProviderProps> = ({ children }) => {
       getLayerById,
       getActiveLayer,
       getLayerElements,
+      reorderLayers,
     }}>
       {children}
     </LayerContext.Provider>
